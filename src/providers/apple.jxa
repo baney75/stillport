@@ -1,0 +1,54 @@
+function run(argv) {
+  var input = JSON.parse(argv[0]);
+  var photos = Application('com.apple.Photos');
+  function row(item) {
+    var p = item.properties();
+    return { id: p.id, source: 'apple', filename: p.filename || '', title: p.name || '', description: p.description || '', takenAt: p.date ? p.date.toISOString() : undefined, width: p.width, height: p.height, favorite: p.favorite, keywords: p.keywords || [] };
+  }
+  if (input.action === 'status') return JSON.stringify({ available: true, version: photos.version(), count: photos.mediaItems.length, searchEngine: 'apple-photos-native' });
+  if (input.action === 'albums') {
+    var albums = photos.albums();
+    return JSON.stringify({ items: albums.slice(input.offset, input.offset + input.limit).map(function (a) { return { id: a.id(), name: a.name(), count: a.mediaItems.length }; }), total: albums.length });
+  }
+  if (input.action === 'get' || input.action === 'export' || input.action === 'reveal') {
+    var item = photos.mediaItems.byId(input.id);
+    if (!item.exists()) return JSON.stringify({ error: 'NOT_FOUND' });
+    if (input.action === 'get') return JSON.stringify(row(item));
+    if (input.action === 'reveal') { photos.spotlight(item); photos.activate(); return JSON.stringify({ revealed: true }); }
+    photos.export([item], { to: Path(input.out), usingOriginals: !!input.original });
+    return JSON.stringify({ exported: true });
+  }
+  var items;
+  if (input.action === 'selection') items = photos.selection();
+  else if (input.query) items = photos.search({ for: input.query });
+  else if (input.album) {
+    var album = photos.albums.byId(input.album);
+    if (!album.exists()) return JSON.stringify({ error: 'ALBUM_NOT_FOUND' });
+    items = album.mediaItems();
+  } else items = photos.mediaItems();
+  var allowed = null;
+  if (input.album && input.query) {
+    var target = photos.albums.byId(input.album);
+    if (!target.exists()) return JSON.stringify({ error: 'ALBUM_NOT_FOUND' });
+    allowed = {};
+    target.mediaItems.id().forEach(function (id) { allowed[id] = true; });
+  }
+  var matches = [];
+  var skipped = 0;
+  var hasMore = false;
+  // Read only the metadata needed to filter; hydrate only the requested page.
+  for (var i = 0; i < items.length; i++) {
+    var candidate = items[i];
+    if (allowed && !allowed[candidate.id()]) continue;
+    if (input.favorite && !candidate.favorite()) continue;
+    if (input.after || input.before) {
+      var time = candidate.date().getTime();
+      if (input.after && time < Date.parse(input.after)) continue;
+      if (input.before && time >= Date.parse(input.before)) continue;
+    }
+    if (skipped++ < input.offset) continue;
+    if (matches.length >= input.limit) { hasMore = true; break; }
+    matches.push(row(candidate));
+  }
+  return JSON.stringify({ items: matches, hasMore: hasMore });
+}
