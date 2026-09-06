@@ -10,3 +10,5 @@ credentials*.json
 .DS_Store
 coverage/
 .local/
+
+.*.bun-build

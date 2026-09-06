@@ -6,7 +6,7 @@ Initial implementation checks, September 2026:
 - Automated CLI checks exercise schema discovery, capability discovery, structured errors, argument rejection, dates, and Google’s interactive-search boundary.
 - Synthetic Takeout integration covers sidecar captions and timestamps, paging, SQL literal input, private exports, export collision avoidance, symlink escape rejection, and removal of stale index rows after re-import.
 - Google HTTP-contract tests cover Picker requests, pagination, authenticated media requests, download parameters, host validation, failed-download cleanup, processing video rejection, transient GET retry, and non-retry of session creation.
-- OAuth tests check PKCE and state validation. Real Google-account login, token refresh, selection and download have not been exercised with a user OAuth client. These are implemented, not live-account verified.
+- OAuth tests check PKCE, state validation, and a real loopback callback rejecting forged state, invalid methods, and incomplete callbacks, then closing on user denial. Real Google-account login, token refresh, selection and download have not been exercised with a user OAuth client. These are implemented, not live-account verified.
 - MCP tests cover handshake, tool discovery, annotations, input validation, notifications, and successful/error tool results.
 - Update tests cover platform selection, version ordering, and checksum-manifest rejection. Release installation and update status are checked separately during publication.
 

@@ -218,7 +218,9 @@ export async function login(
       used = true;
       if (!code) {
         rejectCode(new Error("denied"));
-        return new Response("Authorization declined. You may close this tab.");
+        return new Response("Authorization declined. You may close this tab.", {
+          headers: { Connection: "close", "Cache-Control": "no-store" },
+        });
       }
       resolveCode(code);
       return new Response(
@@ -226,6 +228,7 @@ export async function login(
         {
           headers: {
             "Content-Type": "text/html",
+            Connection: "close",
             "Cache-Control": "no-store",
             "Content-Security-Policy":
               "default-src 'none'; style-src 'unsafe-inline'",
@@ -304,6 +307,6 @@ export async function login(
     };
   } finally {
     clearTimeout(timer);
-    server.stop(true);
+    await server.stop();
   }
 }
