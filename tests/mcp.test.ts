@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
 import { McpServer } from "../src/mcp";
+import { cancellationError } from "../src/core";
 test("MCP handshake, discovery, strict validation, tool results and notifications", async () => {
   const server = new McpServer();
   const call = (method: string, params?: unknown) =>
@@ -49,4 +50,55 @@ test("MCP handshake, discovery, strict validation, tool results and notification
     arguments: { query: "test", source: "google" },
   });
   expect(interactive.result.isError).toBe(true);
+});
+
+test("MCP cancels an active tool call without relaxing schema validation", async () => {
+  let started!: () => void;
+  const running = new Promise<void>((resolve) => (started = resolve));
+  const server = new McpServer(
+    "default",
+    async (_command, _argument, _options, _notify, signal) => {
+      started();
+      await new Promise<void>((resolve) =>
+        signal?.addEventListener("abort", () => resolve(), { once: true }),
+      );
+      cancellationError();
+    },
+  );
+  await server.handle({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {},
+  });
+  const request = server.handle({
+    jsonrpc: "2.0",
+    id: "active-search",
+    method: "tools/call",
+    params: { name: "stillport_search", arguments: { query: "beach" } },
+  });
+  await running;
+  expect(
+    await server.handle({
+      jsonrpc: "2.0",
+      method: "notifications/cancelled",
+      params: { requestId: "active-search" },
+    }),
+  ).toBeUndefined();
+  const response = await request;
+  const payload = JSON.parse(response.result.content[0].text);
+  expect(payload.error.code).toBe("CANCELLED");
+  expect(
+    (
+      await server.handle({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "stillport_search",
+          arguments: { query: "x", unknown: true },
+        },
+      })
+    ).error.code,
+  ).toBe(-32602);
 });

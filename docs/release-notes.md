@@ -1,12 +1,12 @@
-Stillport’s first public release: Apple Photos native search, Google Photos Picker, and Google Takeout archive access for AI agents.
+Stillport 0.1.1 completes the preview path and makes long MCP requests cancellable.
 
-- TypeScript + Bun, with standalone macOS/Linux binaries for ARM64 and x64.
-- Native Apple search, albums, selection, metadata, reveal, previews, and exports.
-- Google Desktop OAuth with PKCE and OS credential storage; selected-media sessions and downloads.
-- Local Takeout metadata search, date filtering, pagination, and safe copies.
-- JSON CLI, discoverable command schema, 12-tool MCP stdio server, and a portable agent skill.
-- Checksum-verified installer and updater with a retained previous binary.
+- Apple Photos previews are now correctly oriented JPEGs bounded to 1600 pixels. Normal and original exports keep their prior behavior.
+- Google Takeout now supports `search` to `preview` to `export`. macOS converts stills to bounded JPEGs; Linux copies web-readable stills unchanged and explains when a format needs macOS.
+- MCP clients can cancel an active request. Stillport stops cancellable provider work, removes partial staging folders, and returns a structured `CANCELLED` result.
+- Takeout checks now cover repeated import, Unicode names, missing metadata, paging, stale files, symlinks, path changes, and export collisions with synthetic fixtures.
+- Google Picker contract checks cover polling data, denial, expiration, temporary failures, authenticated downloads, and cancellation.
+- The product page and quickstart now explain provider choice, privacy boundaries, install verification, rollback, and support paths.
 
 Install with the repository’s install.sh. Assets named stillport-PLATFORM-ARCH are standalone executables; SHA256SUMS covers all four.
 
-Google requires your own OAuth Desktop client and user selection in Picker. The initial release has automated Google HTTP-contract tests; real Google-account authorization is not yet verified. Apple native access was exercised on macOS. See docs/verification.md for scope and limits. Initial macOS releases are not notarized.
+Google requires your own OAuth Desktop client and a person to select items in Picker. Automated Google HTTP-contract tests passed; a real Google-account authorization remains unverified. Apple native search and preview were exercised on macOS. See docs/verification.md for the tested scope and limits. macOS releases are not notarized.

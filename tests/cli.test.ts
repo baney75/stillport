@@ -1,4 +1,12 @@
 import { test, expect } from "bun:test";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  collisionKey,
+  makeJpegPreviews,
+  previewName,
+} from "../src/providers/apple";
 const cwd = import.meta.dir + "/..";
 async function cli(...args: string[]) {
   const p = Bun.spawn([process.execPath, "src/cli.ts", ...args], {
@@ -50,4 +58,66 @@ test("schema and doctor require no connected account", async () => {
   expect(schema.data.data.commands["google pick"]).toBeDefined();
   const doctor = await cli("doctor");
   expect(doctor.data.data.networkChecked).toBe(false);
+});
+
+test("Apple previews request JPEGs at 1600 pixels without colliding with exports", async () => {
+  const root = await mkdtemp(join(tmpdir(), "stillport-preview-"));
+  const controller = new AbortController();
+  await writeFile(join(root, "beach.heic"), "rendered HEIC");
+  await writeFile(join(root, "beach.jpg"), "rendered JPEG");
+  await writeFile(join(root, "beach-preview.jpg"), "reserved source name");
+  const commands: string[][] = [];
+  try {
+    await makeJpegPreviews(
+      root,
+      async (command, _timeout, signal) => {
+        expect(signal).toBe(controller.signal);
+        commands.push(command);
+        const output = command[command.indexOf("--out") + 1];
+        await writeFile(output!, "synthetic JPEG");
+        return { code: 0, stdout: "", stderr: "" };
+      },
+      controller.signal,
+    );
+    expect(commands).toHaveLength(3);
+    const sourceKeys = new Set(
+      commands.map((command) =>
+        command[command.indexOf("--out") - 1]!.split("/")
+          .at(-1)!
+          .normalize("NFC")
+          .toLowerCase(),
+      ),
+    );
+    const destinationKeys = new Set<string>();
+    for (const command of commands) {
+      expect(command).toContain("format");
+      expect(command).toContain("jpeg");
+      expect(command).toContain("1600");
+      const destination = command[command.indexOf("--out") + 1]!;
+      expect(destination).not.toBe(command[command.indexOf("--out") - 1]);
+      const key = destination.split("/").at(-1)!.normalize("NFC").toLowerCase();
+      expect(sourceKeys.has(key)).toBe(false);
+      destinationKeys.add(key);
+    }
+    expect(destinationKeys.size).toBe(3);
+    expect(
+      (await readdir(root)).every((name) =>
+        /-preview(?:-\d+)?\.jpg$/i.test(name),
+      ),
+    ).toBe(true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Apple preview reservations are case-insensitive and Unicode-normalized", () => {
+  const unavailable = new Set(
+    ["beach.heic", "BEACH-preview.JPG", "caf\u00e9-preview.jpg"].map(
+      collisionKey,
+    ),
+  );
+  expect(previewName("beach.heic", unavailable)).toBe("beach-preview-2.jpg");
+  expect(previewName("cafe\u0301.heic", unavailable)).toBe(
+    "cafe\u0301-preview-2.jpg",
+  );
 });

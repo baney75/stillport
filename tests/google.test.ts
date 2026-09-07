@@ -132,3 +132,48 @@ test("provider errors never echo response credentials; GET retries transient fai
   ).rejects.toThrow();
   expect(posts).toBe(1);
 });
+
+test("Picker contract exposes polling and maps denial, expiry and cancellation honestly", async () => {
+  const google = new GooglePhotos(
+    async () => "test",
+    async () =>
+      Response.json({
+        id: "session",
+        pickerUri: "https://photos.google.com/picker/session",
+        expireTime: "2026-01-02T00:00:00Z",
+        pollingConfig: { pollInterval: "5s", timeoutIn: "1h" },
+      }),
+  );
+  expect((await google.session("session")).pollingConfig?.pollInterval).toBe(
+    "5s",
+  );
+  await expect(
+    requestJson(
+      "https://example.test",
+      {},
+      async () => new Response("", { status: 403 }),
+    ),
+  ).rejects.toThrow("denied");
+  await expect(
+    requestJson(
+      "https://example.test",
+      {},
+      async () => new Response("", { status: 410 }),
+    ),
+  ).rejects.toThrow("expired");
+  const controller = new AbortController();
+  const cancelled = requestJson(
+    "https://example.test",
+    { signal: controller.signal },
+    async (_url, init) =>
+      new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          { once: true },
+        ),
+      ),
+  );
+  controller.abort();
+  await expect(cancelled).rejects.toThrow("cancelled");
+});

@@ -4,6 +4,7 @@ import {
   VERSION,
   dataDir,
   fail,
+  throwIfCancelled,
   type Source,
   type SearchOptions,
 } from "./core";
@@ -73,7 +74,9 @@ export async function dispatch(
   argument: string | undefined,
   options: Options,
   notify: (value: unknown) => void = () => {},
+  signal?: AbortSignal,
 ): Promise<any> {
+  throwIfCancelled(signal);
   const spec = commands[command];
   if (!spec)
     fail("UNKNOWN_COMMAND", "Unknown command.", "Run stillport --help.", 2);
@@ -200,13 +203,13 @@ export async function dispatch(
       };
     case "status":
       return source === "apple"
-        ? appleCall({ action: "status" })
+        ? appleCall({ action: "status" }, signal)
         : source === "google"
           ? authStatus(profile)
           : withTakeout((t) => t.status());
     case "search":
     case "list":
-      if (source === "apple") return appleSearch(query);
+      if (source === "apple") return appleSearch(query, false, signal);
       if (source === "takeout") return withTakeout((t) => t.search(query));
       if (
         command === "search" ||
@@ -221,9 +224,9 @@ export async function dispatch(
           "Run stillport google pick. Give the pickerUri to the user; they can use Google’s native search and select photos. Then run google items SESSION.",
           2,
         );
-      return google.items(session(), limit, cursor);
+      return google.items(session(), limit, cursor, signal);
     case "albums":
-      if (source === "apple") return appleAlbums(limit, cursor);
+      if (source === "apple") return appleAlbums(limit, cursor, signal);
       if (source === "takeout")
         return withTakeout((t) => t.albums(limit, cursor));
       return fail(
@@ -233,13 +236,13 @@ export async function dispatch(
         2,
       );
     case "selection":
-      return appleSearch({ limit, cursor }, true);
+      return appleSearch({ limit, cursor }, true, signal);
     case "get":
       return source === "apple"
-        ? appleGet(argument!)
+        ? appleGet(argument!, signal)
         : source === "takeout"
           ? withTakeout((t) => t.get(argument!))
-          : googleMedia(await google.find(session(), argument!));
+          : googleMedia(await google.find(session(), argument!, signal));
     case "export":
     case "preview": {
       const preview = command === "preview";
@@ -251,11 +254,8 @@ export async function dispatch(
           2,
         );
       if (preview && source === "takeout")
-        fail(
-          "UNSUPPORTED_OPERATION",
-          "Takeout previews are not generated.",
-          "Use get to read the localPath or export to copy the file.",
-          2,
+        return withTakeout((t) =>
+          t.preview(argument!, str(options, "out")!, signal),
         );
       if (source === "apple")
         return appleExport(
@@ -263,6 +263,7 @@ export async function dispatch(
           str(options, "out")!,
           options.original === true,
           preview,
+          signal,
         );
       if (source === "takeout")
         return withTakeout((t) => t.export(argument!, str(options, "out")!));
@@ -271,10 +272,11 @@ export async function dispatch(
         argument!,
         str(options, "out")!,
         preview,
+        signal,
       );
     }
     case "reveal":
-      return appleCall({ action: "reveal", id: argument });
+      return appleCall({ action: "reveal", id: argument }, signal);
     case "auth google":
       return login(
         {
@@ -289,6 +291,7 @@ export async function dispatch(
     case "google pick": {
       const result = await google.start(
         integer(str(options, "max-items"), 100, 2000),
+        signal,
       );
       if (options.open) {
         const url = new URL(result.pickerUri);
@@ -310,11 +313,11 @@ export async function dispatch(
       };
     }
     case "google session":
-      return google.session(argument!);
+      return google.session(argument!, signal);
     case "google items":
-      return google.items(argument!, limit, cursor);
+      return google.items(argument!, limit, cursor, signal);
     case "google close":
-      return google.close(argument!);
+      return google.close(argument!, signal);
     case "takeout import":
       return withTakeout((t) => t.import(argument!));
     case "agent skill":

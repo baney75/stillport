@@ -5,7 +5,7 @@
 - `mark.svg`: square app/avatar mark, 128-unit vector.
 - `wordmark.svg`: horizontal wordmark on a transparent background.
 - `banner.svg`: 1280 × 440 repository header.
-- `brand.html`: responsive brand sheet with provider positioning, colors, type, and a working install-copy control.
+- `brand.html`: responsive product page with provider positioning, a complete retrieval flow, privacy boundaries, identity guidance, and a working install-copy control.
 
 Pine `#173E38` is the primary color, paper `#F7F2E8` the canvas, sage `#B9CBA5` the supporting color, and apricot `#EE8963` the accent. Use Georgia for large editorial headlines, system sans for body copy, and monospace for commands. Keep body text in pine or a dark neutral; do not use apricot for small text on paper.
 

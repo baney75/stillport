@@ -20,15 +20,33 @@ curl -fsSL https://raw.githubusercontent.com/baney75/stillport/main/install.sh |
 
 Installs into `~/.local/bin`. If needed, add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile, then restart your shell. The installer verifies the release’s SHA-256 checksum and checks the binary before replacing an existing installation. It keeps the previous executable as `stillport.previous`.
 
-Prefer to inspect first? [Read the installer](install.sh), download it, and run `sh install.sh`. Override the destination with `STILLPORT_INSTALL_DIR`; pin a release with `STILLPORT_VERSION=v0.1.0`. [Manual downloads](https://github.com/baney75/stillport/releases) include `SHA256SUMS`.
+Prefer to inspect first? [Read the installer](install.sh), download it, and run `sh install.sh`. Override the destination with `STILLPORT_INSTALL_DIR`; pin a release with `STILLPORT_VERSION=vX.Y.Z`. [Manual downloads](https://github.com/baney75/stillport/releases) include `SHA256SUMS`.
 
 ```sh
+stillport --version
 stillport doctor
+stillport capabilities
 stillport update --check
 stillport update
 ```
 
 The updater verifies checksums, validates the new version, and replaces the binary atomically. It does not change your credentials or photo index. Checksums verify release integrity; they are not independent publisher signatures. The initial macOS binaries are not Developer ID notarized.
+
+If an update fails before replacement, the installed binary stays in place. After a successful update, the prior executable is `stillport.previous`. To roll back without losing the newer file:
+
+```sh
+cp ~/.local/bin/stillport ~/.local/bin/stillport.failed
+cp ~/.local/bin/stillport.previous ~/.local/bin/stillport
+stillport --version
+```
+
+## Choose a provider
+
+| Your photos are… | Start with | What Stillport can do |
+| --- | --- | --- |
+| In the open Photos library on a Mac | `stillport status --source apple` | Use Apple’s native search, preview a still, or export a rendered copy or original. |
+| In Google Photos | `stillport google pick --open` | Let a person search and select in Google’s Picker, then retrieve only those items. |
+| In an extracted Google Takeout archive | `stillport takeout import '/path/to/Google Photos'` | Index local filenames, captions, dates, and folders without copying the archive. |
 
 ## Apple Photos: native search
 
@@ -49,7 +67,7 @@ Queries go directly to Apple Photos’ `search` scripting command. This uses the
 
 Requires a Mac with Photos and its scripting search command. On first access, macOS may ask you to allow your terminal or agent host to control Photos. Grant that in **System Settings → Privacy & Security → Automation**. This is access to the currently open library, including items synced through iCloud. Stillport never reads or modifies Photos’ private database. It exposes no library editing or deletion commands. Its Automation permission is broader than the operations it exposes.
 
-`preview` makes a still image up to 1600 pixels. `export --original` asks Photos for original files, which may include more than one file per item and may need an iCloud download. Without `--original`, Photos exports its rendered representation. Hidden, Recently Deleted, smart album access, and original availability are not guaranteed.
+`preview` makes JPEG still images up to 1600 pixels, so an image-reading tool can inspect previews exported from HEIC and supported RAW formats. `export --original` asks Photos for original files, which may include more than one file per item and may need an iCloud download. Without `--original`, Photos exports its rendered representation. Hidden, Recently Deleted, smart album access, and original availability are not guaranteed.
 
 ## Google Photos: search and choose
 
@@ -77,10 +95,13 @@ stillport takeout import '/path/to/extracted/Takeout/Google Photos'
 stillport search 'beach' --source takeout
 stillport albums --source takeout
 stillport get 'PHOTO_ID' --source takeout
+stillport preview 'PHOTO_ID' --source takeout --out ./previews
 stillport export 'PHOTO_ID' --source takeout --out ./photos
 ```
 
 Imports metadata from extracted media and JSON sidecars, including supplemental metadata files. Search covers filenames, captions, and folder names. It cannot reproduce Google’s private people, object, or OCR index. The archive stays where it is; Stillport keeps a private SQLite index. Re-import the same directory to update it and remove stale entries. Separate archive copies are separate items; there is no content-based deduplication.
+
+On macOS, `preview` asks `sips` for a correctly oriented JPEG with a maximum edge of 1600 pixels. On Linux, it copies JPEG, PNG, GIF, WebP, or AVIF stills into a new private folder without resizing; HEIC, RAW, and TIFF previews need macOS or an external viewer. `export` always copies the indexed file unchanged. Neither command edits the archive.
 
 ## Built for agents
 
@@ -89,6 +110,7 @@ Imports metadata from extracted media and JSON sidecars, including supplemental 
 - Bounded pages, opaque IDs, and `nextCursor`. Reuse the same query and filters with `--cursor`.
 - `--after` includes its timestamp; `--before` excludes it. Date-only values mean midnight UTC.
 - Each export creates a new private folder and returns its real paths. No overwrites or automatic uploads.
+- MCP clients can cancel an active request; Stillport returns a structured `CANCELLED` result and removes partial staging folders.
 - Exit codes: `0` success, `1` failure, `2` input, `3` permission/platform, `4` not found, `5` temporary provider failure.
 - Help and version are plain text. OAuth progress goes to stderr; stdout contains the final JSON result.
 
@@ -136,6 +158,6 @@ For source installs, update with `git pull --ff-only && bun install --frozen-loc
 
 ## Project
 
-[Verification and limits](docs/verification.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Brand assets](brand/) · [MIT license](LICENSE)
+[Verification and limits](docs/verification.md) · [Google setup](docs/google-setup.md) · [Product review brief](docs/product-review.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Brand and product page](brand/) · [MIT license](LICENSE)
 
 Stillport is an independent project, not affiliated with Apple or Google. Platform names identify the services it connects to.

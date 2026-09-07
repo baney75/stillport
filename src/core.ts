@@ -123,23 +123,69 @@ export function asError(error: unknown) {
         "Run stillport doctor. Check permissions, available storage, and provider setup.",
       );
 }
-export async function runProcess(cmd: string[], timeoutMs = 60_000) {
+export function cancellationError(): never {
+  throw cancelledError();
+}
+export function cancelledError() {
+  return new PortError(
+    "CANCELLED",
+    "The request was cancelled.",
+    "Retry the operation when you are ready.",
+  );
+}
+export function throwIfCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) cancellationError();
+}
+export function timeoutSignal(timeoutMs: number, signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+export async function waitFor(ms: number, signal?: AbortSignal) {
+  throwIfCancelled(signal);
+  if (!signal) return Bun.sleep(ms);
+  await new Promise<void>((resolve, reject) => {
+    const done = () => {
+      signal.removeEventListener("abort", cancel);
+      resolve();
+    };
+    const cancel = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", cancel);
+      reject(cancelledError());
+    };
+    const timer = setTimeout(done, ms);
+    signal.addEventListener("abort", cancel, { once: true });
+    if (signal.aborted) cancel();
+  });
+}
+export async function runProcess(
+  cmd: string[],
+  timeoutMs = 60_000,
+  signal?: AbortSignal,
+) {
+  throwIfCancelled(signal);
   const child = Bun.spawn(cmd, {
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
   });
   let timedOut = false;
+  const cancel = () => {
+    child.kill();
+  };
   const timer = setTimeout(() => {
     timedOut = true;
-    child.kill();
+    cancel();
   }, timeoutMs);
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
   try {
     const [stdout, stderr, code] = await Promise.all([
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
       child.exited,
     ]);
+    if (signal?.aborted) cancellationError();
     if (timedOut)
       fail(
         "TIMEOUT",
@@ -150,6 +196,7 @@ export async function runProcess(cmd: string[], timeoutMs = 60_000) {
     return { stdout, stderr, code };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
   }
 }
 // Every export gets a fresh directory. Existing files are never replaced.

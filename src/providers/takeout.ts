@@ -25,6 +25,8 @@ import {
   fingerprint,
   mediaKind,
   privateDir,
+  runProcess,
+  safeName,
   type Media,
   type SearchOptions,
 } from "../core";
@@ -246,7 +248,7 @@ export class Takeout {
   get(id: string) {
     return this.media(this.row(id));
   }
-  async export(id: string, out: string) {
+  private async sourcePath(id: string) {
     const row = this.row(id);
     let path: string;
     try {
@@ -270,6 +272,10 @@ export class Takeout {
         "ARCHIVE_PATH_CHANGED",
         "The indexed file now points outside its archive.",
       );
+    return { row, path };
+  }
+  async export(id: string, out: string) {
+    const { path } = await this.sourcePath(id);
     return exportDirectory(out, async (staging) => {
       await copyFile(
         path,
@@ -277,5 +283,67 @@ export class Takeout {
         constants.COPYFILE_EXCL,
       );
     });
+  }
+  async preview(id: string, out: string, signal?: AbortSignal) {
+    const { row, path } = await this.sourcePath(id);
+    if (row.kind !== "photo")
+      fail(
+        "PREVIEW_UNSUPPORTED",
+        "Takeout preview only supports still images.",
+        "Use export for video and other formats.",
+        2,
+      );
+    if (process.platform === "darwin") {
+      const result = await exportDirectory(out, async (staging) => {
+        const destination = join(
+          staging,
+          safeName(row.filename.replace(/\.[^.]+$/, "") + "-preview.jpg"),
+        );
+        const converted = await runProcess(
+          [
+            "/usr/bin/sips",
+            "-s",
+            "format",
+            "jpeg",
+            "-Z",
+            "1600",
+            path,
+            "--out",
+            destination,
+          ],
+          60_000,
+          signal,
+        );
+        if (converted.code)
+          fail(
+            "PREVIEW_FAILED",
+            "macOS could not make a JPEG preview from this Takeout item.",
+            "Use export instead.",
+            5,
+          );
+      });
+      return {
+        ...result,
+        note: "JPEG preview, correctly oriented by macOS and bounded to 1600 pixels per dimension.",
+      };
+    }
+    if (!/\.(jpe?g|png|gif|webp|avif)$/i.test(row.filename))
+      fail(
+        "PREVIEW_PLATFORM_UNSUPPORTED",
+        "This Takeout image needs macOS to make a JPEG preview.",
+        "Use macOS for HEIC, RAW, TIFF and other non-web-readable stills, or export the original.",
+        3,
+      );
+    const result = await exportDirectory(out, async (staging) => {
+      await copyFile(
+        path,
+        join(staging, safeName(row.filename)),
+        constants.COPYFILE_EXCL,
+      );
+    });
+    return {
+      ...result,
+      note: "Web-readable Takeout preview copied locally; dimensions are unchanged on this platform.",
+    };
   }
 }

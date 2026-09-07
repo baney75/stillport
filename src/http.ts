@@ -1,4 +1,10 @@
-import { PortError, fail } from "./core";
+import {
+  PortError,
+  cancellationError,
+  fail,
+  timeoutSignal,
+  waitFor,
+} from "./core";
 export type Fetcher = (
   input: string | URL | Request,
   init?: RequestInit,
@@ -15,9 +21,10 @@ export async function requestJson<T>(
       response = await fetcher(url, {
         ...init,
         redirect: "error",
-        signal: AbortSignal.timeout(30_000),
+        signal: timeoutSignal(30_000, init.signal ?? undefined),
       });
     } catch {
+      if (init.signal?.aborted) cancellationError();
       throw new PortError(
         "NETWORK_ERROR",
         "The service could not be reached.",
@@ -44,7 +51,7 @@ export async function requestJson<T>(
           ? Math.min(Number(retry) * 1000, 30_000)
           : 250 * 2 ** attempt;
       await response.body?.cancel();
-      await Bun.sleep(delay);
+      await waitFor(delay, init.signal ?? undefined);
       continue;
     }
     // Provider bodies can echo credentials or signed URLs; never expose them.

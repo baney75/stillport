@@ -40,6 +40,20 @@
         outline: 3px solid var(--coral);
         outline-offset: 5px;
       }
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 10;
+        padding: 10px 14px;
+        border-radius: 6px;
+        background: var(--paper);
+        color: var(--ink);
+        transform: translateY(-160%);
+      }
+      .skip-link:focus {
+        transform: translateY(0);
+      }
       header,
       main,
       footer {
@@ -112,6 +126,27 @@
           monospace;
         margin-top: 26px;
       }
+      .hero-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 30px;
+      }
+      .hero-actions a:first-child {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        border-radius: 7px;
+        background: var(--sage);
+        color: var(--ink);
+        padding: 10px 16px;
+        text-decoration: none;
+        font-weight: 650;
+      }
+      .hero-actions a:last-child {
+        color: #edf2e6;
+      }
       .scene {
         position: relative;
         display: flex;
@@ -122,48 +157,11 @@
           linear-gradient(90deg, #ffffff09 1px, transparent 1px);
         background-size: 84px 84px;
       }
-      .photo {
-        width: 265px;
-        padding: 15px 15px 45px;
-        background: #e5d9bd;
-        transform: rotate(8deg);
-        box-shadow: 0 24px 65px #051d3350;
-        border-radius: 6px;
-        position: relative;
-      }
-      .landscape {
-        height: 248px;
-        position: relative;
-        background: var(--sage);
-        overflow: hidden;
-      }
-      .sun {
-        position: absolute;
-        width: 63px;
-        height: 63px;
-        border-radius: 50%;
-        background: #f4bf81;
-        right: 24px;
-        top: 25px;
-      }
-      .mountain {
-        position: absolute;
-        inset: 80px -30px -50px;
-        background: #537761;
-        clip-path: polygon(0 100%, 43% 0, 100% 100%);
-      }
-      .mountain.second {
-        background: #365b4d;
-        inset: 139px -10px -10px 70px;
-        clip-path: polygon(0 100%, 62% 0, 100% 58%, 100% 100%);
-      }
-      .photo-label {
-        position: absolute;
-        bottom: 15px;
-        font:
-          10px/1 ui-monospace,
-          monospace;
-        letter-spacing: 2px;
+      .hero-mark {
+        width: min(58%, 310px);
+        height: auto;
+        filter: drop-shadow(0 24px 48px #051d3340);
+        transform: rotate(5deg);
       }
       .terminal-chip {
         position: absolute;
@@ -248,6 +246,62 @@
         grid-template-columns: 1fr 1.3fr;
         gap: 40px;
         padding: 40px;
+      }
+      .workflow {
+        padding: 74px 58px 84px;
+      }
+      .workflow-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-top: 26px;
+      }
+      .workflow-step {
+        min-height: 210px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 22px;
+        background: #faf7ef;
+      }
+      .workflow-step h3 {
+        margin: 38px 0 9px;
+      }
+      .workflow-step p {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0;
+      }
+      .privacy-strip {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 48px;
+        margin: 0 32px;
+        border-radius: 16px;
+        padding: 46px;
+        background: #dfe5d6;
+      }
+      .privacy-strip h2 {
+        font: 34px/1.15 Georgia, serif;
+        font-weight: 400;
+        margin: 12px 0 0;
+      }
+      .privacy-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 28px;
+      }
+      .privacy-list div {
+        border-top: 1px solid #9eae98;
+        padding-top: 12px;
+      }
+      .privacy-list strong,
+      .privacy-list span {
+        display: block;
+      }
+      .privacy-list span {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 5px;
       }
       .install h2 {
         font:
@@ -374,12 +428,8 @@
           min-height: 365px;
           margin-top: 12px;
         }
-        .photo {
-          width: 221px;
-          padding: 12px 12px 38px;
-        }
-        .landscape {
-          height: 200px;
+        .hero-mark {
+          width: 190px;
         }
         .terminal-chip {
           left: 24px;
@@ -400,6 +450,18 @@
           grid-template-columns: 1fr;
           gap: 30px;
         }
+        .workflow {
+          padding: 52px 28px;
+        }
+        .workflow-grid {
+          grid-template-columns: 1fr;
+        }
+        .workflow-step {
+          min-height: 0;
+        }
+        .workflow-step h3 {
+          margin-top: 14px;
+        }
         .provider h3 {
           margin-top: 10px;
         }
@@ -415,6 +477,15 @@
         .brand-notes {
           grid-template-columns: 1fr;
           gap: 15px;
+        }
+        .privacy-strip {
+          grid-template-columns: 1fr;
+          margin: 0 16px;
+          padding: 30px 28px;
+          gap: 26px;
+        }
+        .privacy-list {
+          grid-template-columns: 1fr;
         }
         footer {
           padding: 25px 28px;
@@ -433,14 +504,17 @@
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to product</a>
     <header>
-      <img src="wordmark.svg" alt="Stillport" />
+      <a href="#main" aria-label="Stillport home"
+        ><img src="wordmark.svg" alt="Stillport"
+      /></a>
       <nav aria-label="Main">
-        <a href="https://github.com/baney75/stillport">GitHub ↗</a
-        ><a href="#identity">Identity</a>
+        <a href="#workflow">Workflow</a><a href="#install">Install</a
+        ><a href="https://github.com/baney75/stillport">GitHub</a>
       </nav>
     </header>
-    <main>
+    <main id="main">
       <section class="hero">
         <div class="hero-copy">
           <div class="eyebrow">A photo library’s agent interface</div>
@@ -450,22 +524,19 @@
             metadata, and a file it can actually see.
           </p>
           <span class="pill">TypeScript + Bun · CLI + MCP · MIT</span>
+          <div class="hero-actions">
+            <a href="#install">Install Stillport</a>
+            <a href="#workflow">See the retrieval flow</a>
+          </div>
         </div>
         <div
           class="scene"
           aria-label="Illustration of a photo and a search command"
           role="img"
         >
-          <div class="photo">
-            <div class="landscape">
-              <div class="sun"></div>
-              <div class="mountain"></div>
-              <div class="mountain second"></div>
-            </div>
-            <span class="photo-label">A LITTLE CLOSER.</span>
-          </div>
+          <img class="hero-mark" src="mark.svg" alt="" />
           <div class="terminal-chip">
-            <span>●</span>stillport search "summer"
+            <span aria-hidden="true">$</span>stillport search "summer"
           </div>
         </div>
       </section>
@@ -510,6 +581,41 @@
           </article>
         </div>
       </section>
+      <section class="workflow" id="workflow">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">From setup to a usable file</span>
+            <h2>A retrieval flow<br />an agent can finish.</h2>
+          </div>
+          <p>
+            Start with provider discovery. Search or select one item, inspect a
+            bounded preview, then export into a new private folder. Every step
+            returns structured data and a useful failure.
+          </p>
+        </div>
+        <div class="workflow-grid">
+          <article class="workflow-step">
+            <span class="num">01 / DIAGNOSE</span>
+            <h3>Check the host.</h3>
+            <p><code>stillport doctor</code> reports local prerequisites without opening Photos or contacting Google.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="num">02 / DISCOVER</span>
+            <h3>Choose honestly.</h3>
+            <p><code>stillport capabilities</code> names each provider’s search engine, permission, and limits.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="num">03 / INSPECT</span>
+            <h3>Preview one item.</h3>
+            <p>Apple, Google, and macOS Takeout create a still no larger than 1600 pixels. Other Takeout hosts copy compatible stills unchanged.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="num">04 / EXPORT</span>
+            <h3>Copy without overwrite.</h3>
+            <p>Each export gets a new private directory. Stillport returns the exact paths and never edits the library.</p>
+          </article>
+        </div>
+      </section>
       <section class="install" id="install">
         <div>
           <span class="eyebrow">Small setup. Useful access.</span>
@@ -520,7 +626,7 @@
           </p>
           <p>
             <a href="https://github.com/baney75/stillport#install"
-              >Installation & provider setup ↗</a
+              >Installation and provider setup</a
             >
           </p>
         </div>
@@ -530,14 +636,23 @@
             ><button id="copy" type="button">Copy install</button>
           </div>
           <div class="code-body">
-            <code id="install-command"
-              >curl -fsSL
-              https://raw.githubusercontent.com/baney75/stillport/main/install.sh
-              | sh</code
+            <code id="install-command">curl -fsSL https://raw.githubusercontent.com/baney75/stillport/main/install.sh | sh</code
             ><br /><br /><span class="comment"
               ># Check your setup. Update when you choose.</span
             ><br /><code>stillport doctor<br />stillport update</code>
           </div>
+        </div>
+      </section>
+      <section class="privacy-strip" aria-labelledby="privacy-title">
+        <div>
+          <span class="eyebrow">Privacy is part of the interface</span>
+          <h2 id="privacy-title">A port, not a new photo service.</h2>
+        </div>
+        <div class="privacy-list">
+          <div><strong>No hosted intermediary</strong><span>Commands run on your machine. Stillport has no telemetry or AI API key.</span></div>
+          <div><strong>Read-only provider scope</strong><span>No delete, edit, or library mutation commands are exposed.</span></div>
+          <div><strong>Selected Google access</strong><span>A person chooses items in Google Photos Picker. There is no unattended library search.</span></div>
+          <div><strong>Local Takeout index</strong><span>Metadata stays under your Stillport data directory. Archive media is not copied during import.</span></div>
         </div>
       </section>
       <section class="section" id="identity">
@@ -585,10 +700,10 @@
           </div>
         </div>
         <div class="file-links">
-          <a href="mark.svg">App mark ↗</a
-          ><a href="wordmark.svg">Wordmark ↗</a
-          ><a href="banner.svg">Repository banner ↗</a
-          ><a href="../skills/stillport/SKILL.md">Agent skill ↗</a>
+          <a href="mark.svg">App mark</a
+          ><a href="wordmark.svg">Wordmark</a
+          ><a href="banner.svg">Repository banner</a
+          ><a href="../skills/stillport/SKILL.md">Agent skill</a>
         </div>
       </section>
     </main>

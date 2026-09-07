@@ -60,7 +60,7 @@ export const commands: Record<string, Command> = {
   },
   preview: {
     description:
-      "Export an Apple or Google image preview up to 1600 pixels for an agent to view.",
+      "Export an Apple, Google or Takeout still preview. macOS makes bounded JPEG previews; other Takeout platforms copy web-readable stills unchanged.",
     positional: "id",
     required: ["out"],
     options: ["source", "session", "profile", "out"],
@@ -193,13 +193,22 @@ export const capabilities = {
     platform: "macOS, Linux",
     searchEngine: "takeout-metadata",
     nativeSearch: false,
-    operations: ["import", "search", "list", "albums", "get", "export"],
+    operations: [
+      "import",
+      "search",
+      "list",
+      "albums",
+      "get",
+      "export",
+      "preview",
+    ],
     scope: "local extracted archive",
     limits: [
       "Filename, caption and folder search only",
       "No Google face, object, OCR or live library search",
       "Archive must remain on disk",
       "Import refreshes the index; no automatic sync",
+      "macOS makes correctly oriented JPEG previews bounded to 1600 pixels; other platforms only copy already web-readable stills",
     ],
   },
 };

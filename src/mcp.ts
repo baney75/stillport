@@ -94,12 +94,12 @@ const definitions: Tool[] = [
   {
     name: "stillport_preview",
     description:
-      "Write an Apple or Google still preview, at most 1600 pixels, and return paths for an image-reading tool.",
+      "Write an Apple, Google or Takeout still preview. Apple and macOS Takeout previews are JPEGs bounded to 1600 pixels; other Takeout platforms copy web-readable stills unchanged.",
     command: "preview",
     positional: "id",
     properties: {
       id: { type: "string" },
-      source: { type: "string", enum: ["apple", "google"] },
+      source: { type: "string", enum: ["apple", "google", "takeout"] },
       session: { type: "string" },
       out: { type: "string" },
     },
@@ -146,7 +146,11 @@ const definitions: Tool[] = [
 ];
 export class McpServer {
   private initialized = false;
-  constructor(private profile = "default") {}
+  private active = new Map<string | number | null, AbortController>();
+  constructor(
+    private profile = "default",
+    private runner: typeof dispatch = dispatch,
+  ) {}
   async handle(message: any): Promise<any | undefined> {
     const id = message?.id;
     if (
@@ -163,6 +167,16 @@ export class McpServer {
         id: null,
         error: { code: -32600, message: "Invalid Request" },
       };
+    if (message.method === "notifications/cancelled") {
+      const requestId = message.params?.requestId;
+      if (
+        typeof requestId === "string" ||
+        typeof requestId === "number" ||
+        requestId === null
+      )
+        this.active.get(requestId)?.abort();
+      return undefined;
+    }
     if (id === undefined) return undefined;
     const result = (value: unknown) => ({ jsonrpc: "2.0", id, result: value });
     const error = (code: number, text: string) => ({
@@ -253,8 +267,18 @@ export class McpServer {
       ].includes(definition.command)
     )
       options.profile = this.profile;
+    if (this.active.has(id))
+      return error(-32600, "Request ID is already active");
+    const controller = new AbortController();
+    this.active.set(id, controller);
     try {
-      const data = await dispatch(definition.command, argument, options);
+      const data = await this.runner(
+        definition.command,
+        argument,
+        options,
+        () => {},
+        controller.signal,
+      );
       const envelope = { ok: true, apiVersion: API_VERSION, data };
       return result({
         content: [{ type: "text", text: JSON.stringify(envelope) }],
@@ -278,12 +302,33 @@ export class McpServer {
           },
         ],
       });
+    } finally {
+      if (this.active.get(id) === controller) this.active.delete(id);
     }
   }
 }
 export async function serveMcp(profile?: string) {
   const server = new McpServer(profile);
   const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  const pending = new Set<Promise<void>>();
+  const respond = (message: unknown) => {
+    const work = server
+      .handle(message)
+      .then((response) => {
+        if (response) process.stdout.write(JSON.stringify(response) + "\n");
+      })
+      .catch(() => {
+        process.stdout.write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32603, message: "Internal error" },
+          }) + "\n",
+        );
+      })
+      .finally(() => pending.delete(work));
+    pending.add(work);
+  };
   for await (const line of lines) {
     if (!line.trim()) continue;
     if (Buffer.byteLength(line) > 1_048_576) {
@@ -296,16 +341,17 @@ export async function serveMcp(profile?: string) {
       );
       continue;
     }
-    let response;
     try {
-      response = await server.handle(JSON.parse(line));
+      respond(JSON.parse(line));
     } catch {
-      response = {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32700, message: "Parse error" },
-      };
+      process.stdout.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32700, message: "Parse error" },
+        }) + "\n",
+      );
     }
-    if (response) process.stdout.write(JSON.stringify(response) + "\n");
   }
+  await Promise.all(pending);
 }

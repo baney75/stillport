@@ -1,5 +1,13 @@
 import { accessToken } from "../auth";
-import { exportDirectory, fail, safeName, type Media } from "../core";
+import {
+  cancellationError,
+  exportDirectory,
+  fail,
+  safeName,
+  throwIfCancelled,
+  timeoutSignal,
+  type Media,
+} from "../core";
 import { requestJson, type Fetcher } from "../http";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
@@ -68,48 +76,70 @@ export class GooglePhotos {
     private token: () => Promise<string> = () => accessToken(),
     private fetcher: Fetcher = fetch,
   ) {}
-  private async api<T>(path: string, init: RequestInit = {}) {
+  private async api<T>(
+    path: string,
+    init: RequestInit = {},
+    signal?: AbortSignal,
+  ) {
+    throwIfCancelled(signal);
+    const token = await this.token();
+    throwIfCancelled(signal);
     return requestJson<T>(
       BASE + path,
       {
         ...init,
+        signal,
         headers: {
-          Authorization: `Bearer ${await this.token()}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       },
       this.fetcher,
     );
   }
-  async start(maxItems = 100): Promise<Session> {
-    return this.api("/sessions", {
-      method: "POST",
-      body: JSON.stringify({
-        pickingConfig: { maxItemCount: String(maxItems) },
-      }),
-    });
+  async start(maxItems = 100, signal?: AbortSignal): Promise<Session> {
+    return this.api(
+      "/sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          pickingConfig: { maxItemCount: String(maxItems) },
+        }),
+      },
+      signal,
+    );
   }
-  async session(id: string): Promise<Session> {
-    return this.api(`/sessions/${encodeURIComponent(id)}`);
+  async session(id: string, signal?: AbortSignal): Promise<Session> {
+    return this.api(`/sessions/${encodeURIComponent(id)}`, {}, signal);
   }
-  async close(id: string) {
-    await this.api(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+  async close(id: string, signal?: AbortSignal) {
+    await this.api(
+      `/sessions/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+      signal,
+    );
     return { closed: true, session: id };
   }
   async rawItems(
     session: string,
     limit: number,
     cursor?: string,
+    signal?: AbortSignal,
   ): Promise<{ mediaItems?: PickedItem[]; nextPageToken?: string }> {
     const params = new URLSearchParams({
       sessionId: session,
       pageSize: String(limit),
     });
     if (cursor) params.set("pageToken", cursor);
-    return this.api(`/mediaItems?${params}`);
+    return this.api(`/mediaItems?${params}`, {}, signal);
   }
-  async items(session: string, limit: number, cursor?: string) {
-    const result = await this.rawItems(session, limit, cursor);
+  async items(
+    session: string,
+    limit: number,
+    cursor?: string,
+    signal?: AbortSignal,
+  ) {
+    const result = await this.rawItems(session, limit, cursor, signal);
     return {
       items: (result.mediaItems || []).map(googleMedia),
       nextCursor: result.nextPageToken || null,
@@ -118,11 +148,16 @@ export class GooglePhotos {
       session,
     };
   }
-  async find(session: string, id: string): Promise<PickedItem> {
+  async find(
+    session: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<PickedItem> {
     const seen = new Set<string>();
     let cursor: string | undefined;
     do {
-      const result = await this.rawItems(session, 100, cursor);
+      throwIfCancelled(signal);
+      const result = await this.rawItems(session, 100, cursor, signal);
       const item = result.mediaItems?.find((item) => item.id === id);
       if (item) return item;
       cursor = result.nextPageToken;
@@ -140,8 +175,14 @@ export class GooglePhotos {
       4,
     );
   }
-  async download(session: string, id: string, out: string, preview = false) {
-    const item = await this.find(session, id);
+  async download(
+    session: string,
+    id: string,
+    out: string,
+    preview = false,
+    signal?: AbortSignal,
+  ) {
+    const item = await this.find(session, id, signal);
     const video = item.type === "VIDEO";
     const status =
       item.mediaFile.mediaFileMetadata?.videoMetadata?.processingStatus;
@@ -156,16 +197,19 @@ export class GooglePhotos {
       item.mediaFile.baseUrl,
       preview ? "=w1600-h1600" : video ? "=dv" : "=d",
     );
+    throwIfCancelled(signal);
     const token = await this.token();
+    throwIfCancelled(signal);
     const result = await exportDirectory(out, async (staging) => {
       let response: Response;
       try {
         response = await this.fetcher(url, {
           headers: { Authorization: `Bearer ${token}` },
           redirect: "error",
-          signal: AbortSignal.timeout(180_000),
+          signal: timeoutSignal(180_000, signal),
         });
       } catch {
+        if (signal?.aborted) cancellationError();
         return fail(
           "DOWNLOAD_FAILED",
           "The media download could not be started.",
@@ -208,9 +252,12 @@ export class GooglePhotos {
       const file = await open(join(staging, name), "wx", 0o600);
       const reader = response.body.getReader();
       let total = 0;
+      const cancel = () => void reader.cancel().catch(() => {});
+      signal?.addEventListener("abort", cancel, { once: true });
       try {
         while (true) {
           const { value, done } = await reader.read();
+          throwIfCancelled(signal);
           if (done) break;
           total += value.byteLength;
           if (total > max)
@@ -220,6 +267,7 @@ export class GooglePhotos {
         if (!total)
           fail("DOWNLOAD_EMPTY", "The provider returned an empty media file.");
       } finally {
+        signal?.removeEventListener("abort", cancel);
         await reader.cancel().catch(() => {});
         await file.close();
       }
