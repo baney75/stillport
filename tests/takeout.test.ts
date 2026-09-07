@@ -63,12 +63,15 @@ test("Takeout import, native sidecars, dates, paging, get, private export and re
     expect(found.items[0]!.takenAt).toBe("2026-07-04T15:00:00.000Z");
     const first = takeout.search({ limit: 1 });
     expect(first.nextCursor).toBeTruthy();
-    const second = takeout.search({ limit: 1, cursor: first.nextCursor! });
-    expect(second.items[0]!.id).not.toBe(first.items[0]!.id);
-    expect(second.nextCursor).toBeTruthy();
-    expect(
-      takeout.search({ limit: 1, cursor: second.nextCursor! }).nextCursor,
-    ).toBeNull();
+    const pagedIds = new Set([first.items[0]!.id]);
+    let nextCursor = first.nextCursor;
+    while (nextCursor) {
+      const page = takeout.search({ limit: 1, cursor: nextCursor });
+      expect(pagedIds.has(page.items[0]!.id)).toBe(false);
+      pagedIds.add(page.items[0]!.id);
+      nextCursor = page.nextCursor;
+    }
+    expect(pagedIds.size).toBe(2 + unicodeItems);
     expect(() =>
       takeout.search({ query: "changed", limit: 1, cursor: first.nextCursor! }),
     ).toThrow("cursor");
