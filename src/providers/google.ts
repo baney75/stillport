@@ -8,7 +8,7 @@ import {
   timeoutSignal,
   type Media,
 } from "../core";
-import { requestJson, type Fetcher } from "../http";
+import { providerHttpError, requestJson, type Fetcher } from "../http";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 const BASE = "https://photospicker.googleapis.com/v1";
@@ -219,15 +219,17 @@ export class GooglePhotos {
             5,
           );
         }
-        if (!response.ok || !response.body) {
+        if (!response.ok) {
           await response.body?.cancel();
-          fail(
-            "DOWNLOAD_FAILED",
-            `Google returned HTTP ${response.status} for the media.`,
-            "Refresh the Picker session or select the item again.",
-            5,
-          );
+          providerHttpError(response.status);
         }
+        if (!response.body)
+          fail(
+            "DOWNLOAD_EMPTY",
+            "Google returned no media bytes.",
+            "Start a new Picker session and select the item again.",
+            4,
+          );
         const max = 1024 * 1024 * 1024;
         if (Number(response.headers.get("content-length")) > max) {
           await response.body.cancel();

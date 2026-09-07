@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PortError } from "../src/core";
 import { requestJson } from "../src/http";
 const item = {
   id: "photo-1",
@@ -84,6 +85,45 @@ test("failed media downloads leave no partial files", async () => {
   try {
     await expect(google.download("s", "photo-1", root)).rejects.toThrow();
     expect(await readdir(root)).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("media-byte endpoints preserve provider recovery semantics", async () => {
+  const root = await mkdtemp(join(tmpdir(), "stillport-media-status-"));
+  const cases = [
+    { status: 401, code: "AUTH_REQUIRED", exitCode: 3, hint: "auth google" },
+    {
+      status: 403,
+      code: "ACCESS_DENIED",
+      exitCode: 3,
+      hint: "Photos Picker API",
+    },
+    { status: 404, code: "NOT_FOUND", exitCode: 4, hint: "new Picker session" },
+    { status: 410, code: "NOT_FOUND", exitCode: 4, hint: "new Picker session" },
+  ];
+  try {
+    for (const expected of cases) {
+      const google = new GooglePhotos(
+        async () => "test",
+        async (url) =>
+          String(url).includes("googleusercontent")
+            ? new Response("provider-secret", { status: expected.status })
+            : Response.json({ mediaItems: [item] }),
+      );
+      let failure: PortError | undefined;
+      try {
+        await google.download("s", "photo-1", root);
+      } catch (error) {
+        failure = error as PortError;
+      }
+      expect(failure).toBeInstanceOf(PortError);
+      expect(failure?.code).toBe(expected.code);
+      expect(failure?.exitCode).toBe(expected.exitCode);
+      expect(failure?.hint).toContain(expected.hint);
+      expect(JSON.stringify(failure)).not.toContain("provider-secret");
+      expect(await readdir(root)).toEqual([]);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

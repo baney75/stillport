@@ -17,6 +17,7 @@ Reviewed September 6, 2026. These references informed Stillport's product and do
 ## Acceptance criteria
 
 - A new user can install a verified standalone binary, run a sanity check, identify the correct provider, and find the relevant setup guide.
+- A committed synthetic public fixture demonstrates an actual command, structured result, and viewable preview without exposing a personal library.
 - Apple Photos search can produce a correctly oriented JPEG preview bounded to 1600 pixels without editing the library; permission denial, missing items, and unavailable exports leave no ambiguous success or partial final directory.
 - A synthetic Takeout archive supports import, search, preview, and export without changing its media. Re-import, pagination, Unicode filenames, missing sidecars, stale files, symlinks, collisions, and traversal attempts have reproducible checks.
 - Google Picker behavior matches the current official sessions and media-items contracts. Automated contract tests remain distinct from a real authorized account round trip.

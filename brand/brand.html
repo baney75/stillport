@@ -3,6 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Stillport gives local agents a read-only path to search, preview, and export selected photos from Apple Photos, Google Photos Picker, and Google Takeout."
+    />
+    <meta property="og:title" content="Stillport · Your photos, within reach" />
+    <meta
+      property="og:description"
+      content="A local CLI and MCP interface for deliberate, read-only photo retrieval."
+    />
+    <meta property="og:type" content="website" />
     <title>Stillport · Brand & product</title>
     <link rel="icon" href="mark.svg" />
     <style>
@@ -271,6 +281,102 @@
         font-size: 14px;
         margin: 0;
       }
+      .demo {
+        margin: 72px 32px;
+      }
+      .demo-intro {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 32px;
+        margin: 0 26px 24px;
+      }
+      .demo-intro h2 {
+        font:
+          40px/1.1 Georgia,
+          serif;
+        font-weight: 400;
+        letter-spacing: -1px;
+        margin: 14px 0 0;
+      }
+      .demo-intro p {
+        color: var(--muted);
+        max-width: 430px;
+        margin: 0;
+      }
+      .demo-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        background: var(--ink);
+        color: var(--paper);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .demo figure {
+        margin: 0;
+        background: #0e2c28;
+      }
+      .demo figure img {
+        width: 100%;
+        height: 100%;
+        min-height: 520px;
+        object-fit: cover;
+        display: block;
+      }
+      .demo figcaption {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+      .demo-output {
+        padding: 40px;
+        align-self: center;
+        min-width: 0;
+      }
+      .demo-output .eyebrow {
+        color: var(--sage);
+      }
+      .demo-output h3 {
+        font:
+          30px/1.16 Georgia,
+          serif;
+        font-weight: 400;
+        margin: 13px 0 16px;
+      }
+      .demo-output > p {
+        color: #cfdbcb;
+        font-size: 14px;
+      }
+      .demo-command,
+      .demo-json {
+        display: block;
+        border: 1px solid #ffffff24;
+        border-radius: 8px;
+        padding: 14px;
+        margin-top: 18px;
+        font:
+          11px/1.65 ui-monospace,
+          SFMono-Regular,
+          monospace;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+      .demo-command {
+        color: #f5f0e5;
+        background: #ffffff08;
+      }
+      .demo-json {
+        color: #bed0b3;
+        max-height: 225px;
+        overflow: auto;
+      }
+      .demo-output a {
+        display: inline-block;
+        margin-top: 18px;
+        color: #edf2e6;
+      }
       .privacy-strip {
         display: grid;
         grid-template-columns: 0.8fr 1.2fr;
@@ -281,7 +387,9 @@
         background: #dfe5d6;
       }
       .privacy-strip h2 {
-        font: 34px/1.15 Georgia, serif;
+        font:
+          34px/1.15 Georgia,
+          serif;
         font-weight: 400;
         margin: 12px 0 0;
       }
@@ -462,6 +570,26 @@
         .workflow-step h3 {
           margin-top: 14px;
         }
+        .demo {
+          margin: 54px 16px;
+        }
+        .demo-intro {
+          display: block;
+          margin: 0 12px 22px;
+        }
+        .demo-intro p {
+          margin-top: 18px;
+        }
+        .demo-grid {
+          grid-template-columns: 1fr;
+        }
+        .demo figure img {
+          min-height: 0;
+          aspect-ratio: 3 / 2;
+        }
+        .demo-output {
+          padding: 28px;
+        }
         .provider h3 {
           margin-top: 10px;
         }
@@ -510,7 +638,7 @@
         ><img src="wordmark.svg" alt="Stillport"
       /></a>
       <nav aria-label="Main">
-        <a href="#workflow">Workflow</a><a href="#install">Install</a
+        <a href="#demo">Demo</a><a href="#install">Install</a
         ><a href="https://github.com/baney75/stillport">GitHub</a>
       </nav>
     </header>
@@ -526,7 +654,7 @@
           <span class="pill">TypeScript + Bun · CLI + MCP · MIT</span>
           <div class="hero-actions">
             <a href="#install">Install Stillport</a>
-            <a href="#workflow">See the retrieval flow</a>
+            <a href="#demo">See a real retrieval</a>
           </div>
         </div>
         <div
@@ -597,22 +725,34 @@
           <article class="workflow-step">
             <span class="num">01 / DIAGNOSE</span>
             <h3>Check the host.</h3>
-            <p><code>stillport doctor</code> reports local prerequisites without opening Photos or contacting Google.</p>
+            <p>
+              <code>stillport doctor</code> reports local prerequisites without
+              opening Photos or contacting Google.
+            </p>
           </article>
           <article class="workflow-step">
             <span class="num">02 / DISCOVER</span>
             <h3>Choose honestly.</h3>
-            <p><code>stillport capabilities</code> names each provider’s search engine, permission, and limits.</p>
+            <p>
+              <code>stillport capabilities</code> names each provider’s search
+              engine, permission, and limits.
+            </p>
           </article>
           <article class="workflow-step">
             <span class="num">03 / INSPECT</span>
             <h3>Preview one item.</h3>
-            <p>Apple, Google, and macOS Takeout create a still no larger than 1600 pixels. Other Takeout hosts copy compatible stills unchanged.</p>
+            <p>
+              Apple, Google, and macOS Takeout create a still no larger than
+              1600 pixels. Other Takeout hosts copy compatible stills unchanged.
+            </p>
           </article>
           <article class="workflow-step">
             <span class="num">04 / EXPORT</span>
             <h3>Copy without overwrite.</h3>
-            <p>Each export gets a new private directory. Stillport returns the exact paths and never edits the library.</p>
+            <p>
+              Each export gets a new private directory. Stillport returns the
+              exact paths and never edits the library.
+            </p>
           </article>
         </div>
       </section>
@@ -636,10 +776,72 @@
             ><button id="copy" type="button">Copy install</button>
           </div>
           <div class="code-body">
+            <!-- prettier-ignore -->
             <code id="install-command">curl -fsSL https://raw.githubusercontent.com/baney75/stillport/main/install.sh | sh</code
             ><br /><br /><span class="comment"
               ># Check your setup. Update when you choose.</span
             ><br /><code>stillport doctor<br />stillport update</code>
+          </div>
+        </div>
+      </section>
+      <section class="demo" id="demo" aria-labelledby="demo-title">
+        <div class="demo-intro">
+          <div>
+            <span class="eyebrow">One fixture. The actual path.</span>
+            <h2 id="demo-title">
+              From local archive<br />to viewable preview.
+            </h2>
+          </div>
+          <p>
+            This fully synthetic harbor image ships with the repository. The
+            command below imports its Takeout-style sidecar, finds the caption,
+            and asks Stillport for the JPEG shown here.
+          </p>
+        </div>
+        <div class="demo-grid">
+          <figure>
+            <img
+              src="demo-preview.jpg"
+              alt="Synthetic fictional harbor at dawn with a green rowboat beside an empty wooden pier"
+            />
+            <figcaption>
+              The JPEG preview produced by Stillport from its public synthetic
+              Takeout fixture.
+            </figcaption>
+          </figure>
+          <div class="demo-output">
+            <span class="eyebrow"
+              >Local Takeout / synthetic public fixture</span
+            >
+            <h3>A result you can reproduce.</h3>
+            <p>
+              Run from a cloned repository after installation. The script uses
+              an isolated temporary index and leaves the source image unchanged.
+            </p>
+            <code class="demo-command"
+              >$ ./examples/takeout-demo/run.sh ./stillport-demo-output</code
+            >
+            <pre
+              class="demo-json"
+              aria-label="Abridged successful JSON output"
+            ><code>{
+  "search": {
+    "ok": true,
+    "item": {
+      "source": "takeout",
+      "filename": "stillport-harbor.png",
+      "description": "Quiet fictional harbor with a green rowboat."
+    }
+  },
+  "preview": {
+    "ok": true,
+    "file": "…/stillport-harbor-preview.jpg",
+    "note": "JPEG preview bounded to 1600 pixels."
+  }
+}</code></pre>
+            <a href="../examples/takeout-demo/README.md"
+              >Fixture, provenance, and exact steps</a
+            >
           </div>
         </div>
       </section>
@@ -649,10 +851,33 @@
           <h2 id="privacy-title">A port, not a new photo service.</h2>
         </div>
         <div class="privacy-list">
-          <div><strong>No hosted intermediary</strong><span>Commands run on your machine. Stillport has no telemetry or AI API key.</span></div>
-          <div><strong>Read-only provider scope</strong><span>No delete, edit, or library mutation commands are exposed.</span></div>
-          <div><strong>Selected Google access</strong><span>A person chooses items in Google Photos Picker. There is no unattended library search.</span></div>
-          <div><strong>Local Takeout index</strong><span>Metadata stays under your Stillport data directory. Archive media is not copied during import.</span></div>
+          <div>
+            <strong>No hosted intermediary</strong
+            ><span
+              >Commands run on your machine. Stillport has no telemetry or AI
+              API key.</span
+            >
+          </div>
+          <div>
+            <strong>Read-only provider scope</strong
+            ><span
+              >No delete, edit, or library mutation commands are exposed.</span
+            >
+          </div>
+          <div>
+            <strong>Selected Google access</strong
+            ><span
+              >A person chooses items in Google Photos Picker. There is no
+              unattended library search.</span
+            >
+          </div>
+          <div>
+            <strong>Local Takeout index</strong
+            ><span
+              >Metadata stays under your Stillport data directory. Archive media
+              is not copied during import.</span
+            >
+          </div>
         </div>
       </section>
       <section class="section" id="identity">
@@ -694,14 +919,14 @@
               verified OAuth app.
             </p>
             <p>
-              The photo illustration is original vector artwork. No private
-              photographs appear in the brand assets.
+              The mark is original vector artwork. The harbor photograph is a
+              synthetic public fixture used to prove the retrieval path. No
+              private photographs appear in the brand assets.
             </p>
           </div>
         </div>
         <div class="file-links">
-          <a href="mark.svg">App mark</a
-          ><a href="wordmark.svg">Wordmark</a
+          <a href="mark.svg">App mark</a><a href="wordmark.svg">Wordmark</a
           ><a href="banner.svg">Repository banner</a
           ><a href="../skills/stillport/SKILL.md">Agent skill</a>
         </div>

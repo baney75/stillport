@@ -9,6 +9,42 @@ export type Fetcher = (
   input: string | URL | Request,
   init?: RequestInit,
 ) => Promise<Response>;
+export function providerHttpError(status: number): never {
+  if (status === 401)
+    fail(
+      "AUTH_REQUIRED",
+      "Google authorization expired or was revoked.",
+      "Run stillport auth google again.",
+      3,
+    );
+  if (status === 403)
+    fail(
+      "ACCESS_DENIED",
+      "Google denied access.",
+      "Enable the Photos Picker API, check the OAuth test-user list and requested scope, then sign in again.",
+      3,
+    );
+  if ([404, 410].includes(status))
+    fail(
+      "NOT_FOUND",
+      "The resource is missing or expired.",
+      "Start a new Picker session and select the item again.",
+      4,
+    );
+  if (status === 429)
+    fail(
+      "RATE_LIMITED",
+      "The service is rate limiting requests.",
+      "Retry later.",
+      5,
+    );
+  fail(
+    "HTTP_ERROR",
+    `The service returned HTTP ${status}.`,
+    "Check the command and provider setup. Retry only after resolving the error.",
+    5,
+  );
+}
 export async function requestJson<T>(
   url: string,
   init: RequestInit = {},
@@ -56,39 +92,6 @@ export async function requestJson<T>(
     }
     // Provider bodies can echo credentials or signed URLs; never expose them.
     await response.body?.cancel();
-    if (response.status === 401)
-      fail(
-        "AUTH_REQUIRED",
-        "Google authorization expired or was revoked.",
-        "Run stillport auth google again.",
-        3,
-      );
-    if (response.status === 403)
-      fail(
-        "ACCESS_DENIED",
-        "Google denied access.",
-        "Enable the Photos Picker API, check the OAuth test-user list and requested scope, then sign in again.",
-        3,
-      );
-    if ([404, 410].includes(response.status))
-      fail(
-        "NOT_FOUND",
-        "The resource is missing or expired.",
-        "Start a new Picker session and select the item again.",
-        4,
-      );
-    if (response.status === 429)
-      fail(
-        "RATE_LIMITED",
-        "The service is rate limiting requests.",
-        "Retry later.",
-        5,
-      );
-    fail(
-      "HTTP_ERROR",
-      `The service returned HTTP ${response.status}.`,
-      "Check the command and provider setup. Retry only after resolving the error.",
-      5,
-    );
+    providerHttpError(response.status);
   }
 }

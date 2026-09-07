@@ -1,11 +1,10 @@
-Stillport 0.1.1 completes the preview path and makes long MCP requests cancellable.
+Stillport 0.1.2 fixes selected-media recovery errors and adds a reproducible public retrieval demonstration.
 
-- Apple Photos previews are now correctly oriented JPEGs bounded to 1600 pixels. Normal and original exports keep their prior behavior.
-- Google Takeout now supports `search` to `preview` to `export`. macOS converts stills to bounded JPEGs; Linux copies web-readable stills unchanged and explains when a format needs macOS.
-- MCP clients can cancel an active request. Stillport stops cancellable provider work, removes partial staging folders, and returns a structured `CANCELLED` result.
-- Takeout checks now cover repeated import, Unicode names, missing metadata, paging, stale files, symlinks, path changes, and export collisions with synthetic fixtures.
-- Google Picker contract checks cover polling data, denial, expiration, temporary failures, authenticated downloads, and cancellation.
-- The product page and quickstart now explain provider choice, privacy boundaries, install verification, rollback, and support paths.
+- Google selected-media downloads now preserve recovery semantics: 401 returns `AUTH_REQUIRED`, 403 returns `ACCESS_DENIED`, and 404 or 410 returns `NOT_FOUND`, with the matching exit code and next action.
+- Media-byte endpoint regressions cover every mapped status, provider-body redaction, and partial-output cleanup.
+- The repository includes a metadata-stripped synthetic harbor fixture, a one-command Takeout demonstration, and the actual JPEG preview produced by Stillport.
+- The product page connects that command to abridged structured output and the viewable preview without using private library data.
+- This release includes the 0.1.1 Apple JPEG preview, Takeout preview, and MCP cancellation improvements.
 
 Install with the repository’s install.sh. Assets named stillport-PLATFORM-ARCH are standalone executables; SHA256SUMS covers all four.
 

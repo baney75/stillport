@@ -42,11 +42,11 @@ stillport --version
 
 ## Choose a provider
 
-| Your photos are… | Start with | What Stillport can do |
-| --- | --- | --- |
-| In the open Photos library on a Mac | `stillport status --source apple` | Use Apple’s native search, preview a still, or export a rendered copy or original. |
-| In Google Photos | `stillport google pick --open` | Let a person search and select in Google’s Picker, then retrieve only those items. |
-| In an extracted Google Takeout archive | `stillport takeout import '/path/to/Google Photos'` | Index local filenames, captions, dates, and folders without copying the archive. |
+| Your photos are…                       | Start with                                          | What Stillport can do                                                              |
+| -------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| In the open Photos library on a Mac    | `stillport status --source apple`                   | Use Apple’s native search, preview a still, or export a rendered copy or original. |
+| In Google Photos                       | `stillport google pick --open`                      | Let a person search and select in Google’s Picker, then retrieve only those items. |
+| In an extracted Google Takeout archive | `stillport takeout import '/path/to/Google Photos'` | Index local filenames, captions, dates, and folders without copying the archive.   |
 
 ## Apple Photos: native search
 
@@ -103,6 +103,14 @@ Imports metadata from extracted media and JSON sidecars, including supplemental 
 
 On macOS, `preview` asks `sips` for a correctly oriented JPEG with a maximum edge of 1600 pixels. On Linux, it copies JPEG, PNG, GIF, WebP, or AVIF stills into a new private folder without resizing; HEIC, RAW, and TIFF previews need macOS or an external viewer. `export` always copies the indexed file unchanged. Neither command edits the archive.
 
+To exercise the full Takeout path without using a personal library, clone the repository and run its [synthetic public harbor fixture](examples/takeout-demo/):
+
+```sh
+./examples/takeout-demo/run.sh ./stillport-demo-output
+```
+
+The script prints the real import, search, and preview results, leaves the source fixture unchanged, and deletes its temporary index.
+
 ## Built for agents
 
 - JSON by default, including errors. `--human` pretty-prints; `--json` is explicit JSON mode.
@@ -115,7 +123,15 @@ On macOS, `preview` asks `sips` for a correctly oriented JPEG with a maximum edg
 - Help and version are plain text. OAuth progress goes to stderr; stdout contains the final JSON result.
 
 ```json
-{"ok":true,"apiVersion":"1","data":{"items":[],"nextCursor":null,"searchEngine":"apple-photos-native"}}
+{
+  "ok": true,
+  "apiVersion": "1",
+  "data": {
+    "items": [],
+    "nextCursor": null,
+    "searchEngine": "apple-photos-native"
+  }
+}
 ```
 
 The example is illustrative. A returned page may include other documented metadata.
