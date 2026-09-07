@@ -26,5 +26,24 @@ item_id=$(
   echo "The demo fixture was not found in its isolated index." >&2
   exit 1
 }
-STILLPORT_HOME=$state "$binary" preview "$item_id" \
-  --source takeout --out "$output" --json
+preview_result=$(
+  STILLPORT_HOME=$state "$binary" preview "$item_id" \
+    --source takeout --out "$output" --json
+)
+printf '%s\n' "$preview_result"
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  preview_file=$(
+    printf '%s\n' "$preview_result" |
+      sed -n 's/.*"files":\["\([^"]*\)"\].*/\1/p'
+  )
+  [ -n "$preview_file" ] || {
+    echo "Stillport did not return the demo preview path." >&2
+    exit 1
+  }
+  cmp -s "$preview_file" "$script_dir/../../brand/demo-preview.jpg" || {
+    echo "The generated preview no longer matches brand/demo-preview.jpg." >&2
+    exit 1
+  }
+  printf '%s\n' '{"ok":true,"demoAssetMatches":true,"asset":"brand/demo-preview.jpg"}'
+fi
