@@ -8,10 +8,12 @@ import {
   symlink,
   readdir,
   realpath,
+  truncate,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Takeout } from "../src/providers/takeout";
+import { McpServer } from "../src/mcp";
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL7WQAAAABJRU5ErkJggg==",
@@ -128,6 +130,76 @@ test("Takeout preview preserves originals and is explicit about platform limits"
     } else expect(result.note).toContain("unchanged");
   } finally {
     takeout.close();
+    if (previous === undefined) delete process.env.STILLPORT_HOME;
+    else process.env.STILLPORT_HOME = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Takeout cancellation preserves the index and MCP removes a partial export", async () => {
+  const root = await mkdtemp(join(tmpdir(), "stillport-cancel-"));
+  const previous = process.env.STILLPORT_HOME;
+  process.env.STILLPORT_HOME = join(root, "state");
+  const archive = join(root, "archive");
+  const output = join(root, "output");
+  await mkdir(archive);
+  const original = join(archive, "large.jpg");
+  await writeFile(original, "");
+  await truncate(original, 512 * 1024 * 1024);
+  const takeout = await Takeout.open();
+  try {
+    await takeout.import(archive);
+    const id = takeout.search({ limit: 1 }).items[0]!.id;
+
+    const importController = new AbortController();
+    importController.abort();
+    await expect(
+      takeout.import(archive, importController.signal),
+    ).rejects.toThrow("cancelled");
+    expect(takeout.status()).toEqual({ items: 1, archives: 1 });
+    takeout.close();
+
+    const server = new McpServer();
+    await server.handle({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
+    });
+    const request = server.handle({
+      jsonrpc: "2.0",
+      id: "takeout-export",
+      method: "tools/call",
+      params: {
+        name: "stillport_export",
+        arguments: { id, source: "takeout", out: output },
+      },
+    });
+
+    let sawStaging = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const names = await readdir(output).catch(() => []);
+      if (names.some((name) => name.startsWith(".stillport-"))) {
+        sawStaging = true;
+        break;
+      }
+      await Bun.sleep(1);
+    }
+    expect(sawStaging).toBe(true);
+    await server.handle({
+      jsonrpc: "2.0",
+      method: "notifications/cancelled",
+      params: { requestId: "takeout-export" },
+    });
+    const response = await request;
+    const payload = JSON.parse(response.result.content[0].text);
+    expect(payload.error.code).toBe("CANCELLED");
+    expect(await readdir(output)).toEqual([]);
+    expect((await stat(original)).size).toBe(512 * 1024 * 1024);
+  } finally {
+    try {
+      takeout.close();
+    } catch {}
     if (previous === undefined) delete process.env.STILLPORT_HOME;
     else process.env.STILLPORT_HOME = previous;
     await rm(root, { recursive: true, force: true });

@@ -266,7 +266,9 @@ export async function dispatch(
           signal,
         );
       if (source === "takeout")
-        return withTakeout((t) => t.export(argument!, str(options, "out")!));
+        return withTakeout((t) =>
+          t.export(argument!, str(options, "out")!, signal),
+        );
       return google.download(
         session(),
         argument!,
@@ -319,7 +321,7 @@ export async function dispatch(
     case "google close":
       return google.close(argument!, signal);
     case "takeout import":
-      return withTakeout((t) => t.import(argument!));
+      return withTakeout((t) => t.import(argument!, signal));
     case "agent skill":
       return { name: "stillport", content: skill };
     case "update":

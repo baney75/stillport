@@ -203,15 +203,21 @@ export async function runProcess(
 export async function exportDirectory(
   out: string,
   work: (staging: string) => Promise<void>,
+  signal?: AbortSignal,
 ) {
+  throwIfCancelled(signal);
   const parent = resolve(out);
   await privateDir(parent);
+  throwIfCancelled(signal);
   const staging = await mkdtemp(join(parent, ".stillport-"));
-  await chmod(staging, 0o700);
   try {
+    await chmod(staging, 0o700);
+    throwIfCancelled(signal);
     await work(staging);
+    throwIfCancelled(signal);
     const { readdir, stat } = await import("node:fs/promises");
     const names = await readdir(staging);
+    throwIfCancelled(signal);
     if (!names.length)
       fail(
         "EXPORT_EMPTY",
@@ -225,12 +231,18 @@ export async function exportDirectory(
           "The provider returned an unexpected directory.",
         );
       await chmod(join(staging, name), 0o600);
+      throwIfCancelled(signal);
     }
     const destination = join(
       parent,
       `stillport-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
     );
+    throwIfCancelled(signal);
     await rename(staging, destination);
+    if (signal?.aborted) {
+      await rm(destination, { recursive: true, force: true });
+      cancellationError();
+    }
     return {
       directory: destination,
       files: names.map((name) => join(destination, name)),

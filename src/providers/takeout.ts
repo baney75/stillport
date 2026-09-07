@@ -4,8 +4,8 @@ import {
   readFile,
   realpath,
   stat,
-  copyFile,
   chmod,
+  open,
 } from "node:fs/promises";
 import {
   basename,
@@ -15,8 +15,8 @@ import {
   resolve,
   isAbsolute,
 } from "node:path";
-import { constants } from "node:fs";
 import {
+  cancellationError,
   cursorFor,
   cursorOffset,
   dataDir,
@@ -27,6 +27,7 @@ import {
   privateDir,
   runProcess,
   safeName,
+  throwIfCancelled,
   type Media,
   type SearchOptions,
 } from "../core";
@@ -59,12 +60,16 @@ export class Takeout {
       )
       .get();
   }
-  async import(directory: string) {
+  async import(directory: string, signal?: AbortSignal) {
+    throwIfCancelled(signal);
     let root: string;
     try {
       root = await realpath(resolve(directory));
+      throwIfCancelled(signal);
       if (!(await stat(root)).isDirectory()) throw new Error();
+      throwIfCancelled(signal);
     } catch {
+      if (signal?.aborted) cancellationError();
       return fail(
         "ARCHIVE_NOT_FOUND",
         "The archive directory does not exist.",
@@ -75,18 +80,24 @@ export class Takeout {
     const records: any[] = [];
     let ignoredSidecars = 0;
     async function walk(folder: string) {
+      throwIfCancelled(signal);
       const entries = await readdir(folder, { withFileTypes: true });
+      throwIfCancelled(signal);
       // Do not follow symlinks out of a user-selected archive.
       const sidecars = new Map<string, any>();
       for (const entry of entries) {
+        throwIfCancelled(signal);
         if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
         const path = join(folder, entry.name);
-        if ((await stat(path)).size > 2 * 1024 * 1024) {
+        const size = (await stat(path)).size;
+        throwIfCancelled(signal);
+        if (size > 2 * 1024 * 1024) {
           ignoredSidecars++;
           continue;
         }
         try {
           const metadata = JSON.parse(await readFile(path, "utf8"));
+          throwIfCancelled(signal);
           sidecars.set(entry.name, metadata);
           if (
             typeof metadata.title === "string" &&
@@ -94,10 +105,12 @@ export class Takeout {
           )
             sidecars.set(metadata.title, metadata);
         } catch {
+          if (signal?.aborted) cancellationError();
           ignoredSidecars++;
         }
       }
       for (const entry of entries) {
+        throwIfCancelled(signal);
         const path = join(folder, entry.name);
         if (entry.isDirectory()) {
           await walk(path);
@@ -134,13 +147,20 @@ export class Takeout {
       }
     }
     await walk(root);
+    throwIfCancelled(signal);
     // Replace only this archive's index in one transaction, including removed files.
     const insert = this.db.prepare(
       "INSERT INTO media VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET root=excluded.root,path=excluded.path,filename=excluded.filename,title=excluded.title,description=excluded.description,takenAt=excluded.takenAt,kind=excluded.kind,album=excluded.album",
     );
-    this.db.transaction(() => {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
       this.db.query("DELETE FROM media WHERE root=?").run(root);
-      for (const record of records)
+      for (let index = 0; index < records.length; index++) {
+        if (index % 100 === 0) {
+          await Bun.sleep(0);
+          throwIfCancelled(signal);
+        }
+        const record = records[index]!;
         insert.run(
           record.id,
           record.root,
@@ -152,7 +172,15 @@ export class Takeout {
           record.kind,
           record.album,
         );
-    })();
+      }
+      throwIfCancelled(signal);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {}
+      throw error;
+    }
     return {
       indexed: records.length,
       ignoredSidecars,
@@ -248,12 +276,15 @@ export class Takeout {
   get(id: string) {
     return this.media(this.row(id));
   }
-  private async sourcePath(id: string) {
+  private async sourcePath(id: string, signal?: AbortSignal) {
+    throwIfCancelled(signal);
     const row = this.row(id);
     let path: string;
     try {
       path = await realpath(row.path);
+      throwIfCancelled(signal);
     } catch {
+      if (signal?.aborted) cancellationError();
       return fail(
         "FILE_MISSING",
         "The indexed photo is no longer on disk.",
@@ -274,18 +305,18 @@ export class Takeout {
       );
     return { row, path };
   }
-  async export(id: string, out: string) {
-    const { path } = await this.sourcePath(id);
-    return exportDirectory(out, async (staging) => {
-      await copyFile(
-        path,
-        join(staging, basename(path)),
-        constants.COPYFILE_EXCL,
-      );
-    });
+  async export(id: string, out: string, signal?: AbortSignal) {
+    const { path } = await this.sourcePath(id, signal);
+    return exportDirectory(
+      out,
+      async (staging) => {
+        await copyCancellable(path, join(staging, basename(path)), signal);
+      },
+      signal,
+    );
   }
   async preview(id: string, out: string, signal?: AbortSignal) {
-    const { row, path } = await this.sourcePath(id);
+    const { row, path } = await this.sourcePath(id, signal);
     if (row.kind !== "photo")
       fail(
         "PREVIEW_UNSUPPORTED",
@@ -294,34 +325,38 @@ export class Takeout {
         2,
       );
     if (process.platform === "darwin") {
-      const result = await exportDirectory(out, async (staging) => {
-        const destination = join(
-          staging,
-          safeName(row.filename.replace(/\.[^.]+$/, "") + "-preview.jpg"),
-        );
-        const converted = await runProcess(
-          [
-            "/usr/bin/sips",
-            "-s",
-            "format",
-            "jpeg",
-            "-Z",
-            "1600",
-            path,
-            "--out",
-            destination,
-          ],
-          60_000,
-          signal,
-        );
-        if (converted.code)
-          fail(
-            "PREVIEW_FAILED",
-            "macOS could not make a JPEG preview from this Takeout item.",
-            "Use export instead.",
-            5,
+      const result = await exportDirectory(
+        out,
+        async (staging) => {
+          const destination = join(
+            staging,
+            safeName(row.filename.replace(/\.[^.]+$/, "") + "-preview.jpg"),
           );
-      });
+          const converted = await runProcess(
+            [
+              "/usr/bin/sips",
+              "-s",
+              "format",
+              "jpeg",
+              "-Z",
+              "1600",
+              path,
+              "--out",
+              destination,
+            ],
+            60_000,
+            signal,
+          );
+          if (converted.code)
+            fail(
+              "PREVIEW_FAILED",
+              "macOS could not make a JPEG preview from this Takeout item.",
+              "Use export instead.",
+              5,
+            );
+        },
+        signal,
+      );
       return {
         ...result,
         note: "JPEG preview, correctly oriented by macOS and bounded to 1600 pixels per dimension.",
@@ -334,16 +369,68 @@ export class Takeout {
         "Use macOS for HEIC, RAW, TIFF and other non-web-readable stills, or export the original.",
         3,
       );
-    const result = await exportDirectory(out, async (staging) => {
-      await copyFile(
-        path,
-        join(staging, safeName(row.filename)),
-        constants.COPYFILE_EXCL,
-      );
-    });
+    const result = await exportDirectory(
+      out,
+      async (staging) => {
+        await copyCancellable(
+          path,
+          join(staging, safeName(row.filename)),
+          signal,
+        );
+      },
+      signal,
+    );
     return {
       ...result,
       note: "Web-readable Takeout preview copied locally; dimensions are unchanged on this platform.",
     };
+  }
+}
+
+async function copyCancellable(
+  sourcePath: string,
+  destinationPath: string,
+  signal?: AbortSignal,
+) {
+  throwIfCancelled(signal);
+  const source = await open(sourcePath, "r");
+  let destination: Awaited<ReturnType<typeof open>> | undefined;
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  let readOffset = 0;
+  let writeOffset = 0;
+  try {
+    throwIfCancelled(signal);
+    destination = await open(destinationPath, "wx", 0o600);
+    while (true) {
+      throwIfCancelled(signal);
+      const { bytesRead } = await source.read(
+        buffer,
+        0,
+        buffer.length,
+        readOffset,
+      );
+      throwIfCancelled(signal);
+      if (!bytesRead) break;
+      let written = 0;
+      while (written < bytesRead) {
+        throwIfCancelled(signal);
+        const result = await destination.write(
+          buffer,
+          written,
+          bytesRead - written,
+          writeOffset + written,
+        );
+        written += result.bytesWritten;
+      }
+      readOffset += bytesRead;
+      writeOffset += bytesRead;
+      await Bun.sleep(0);
+    }
+  } catch (error) {
+    if (signal?.aborted) cancellationError();
+    throw error;
+  } finally {
+    await destination?.close().catch(() => {});
+    await source.close().catch(() => {});
   }
 }

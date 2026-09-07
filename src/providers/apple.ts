@@ -190,10 +190,14 @@ export async function appleExport(
   preview = false,
   signal?: AbortSignal,
 ) {
-  const result = await exportDirectory(out, async (staging) => {
-    await appleCall({ action: "export", id, out: staging, original }, signal);
-    if (preview) await makeJpegPreviews(staging, runProcess, signal);
-  });
+  const result = await exportDirectory(
+    out,
+    async (staging) => {
+      await appleCall({ action: "export", id, out: staging, original }, signal);
+      if (preview) await makeJpegPreviews(staging, runProcess, signal);
+    },
+    signal,
+  );
   return preview
     ? { ...result, note: "JPEG preview, maximum 1600 pixels per dimension." }
     : result;
