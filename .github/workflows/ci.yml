@@ -29,6 +29,7 @@ jobs:
       - run: bun run package:plugin
       - name: Exercise the extracted plugin fixture
         run: |
+          mkdir -p .local/plugin-smoke
           unzip -q dist/stillport-plugin-*.zip -d .local/plugin-smoke
           for binary in "$PWD"/dist/stillport-*; do
             case "$binary" in *.zip|*.sha256) continue ;; esac

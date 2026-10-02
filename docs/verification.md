@@ -28,6 +28,14 @@ and matched the committed demo JPEG. The export matched the source PNG's hash,
 the source stayed unchanged, and the exported file had mode `0600`. CI now runs
 the extracted fixture on macOS and Linux alongside source and compiled checks.
 
+The first CI attempt exposed a missing extraction parent: `unzip -d` could not
+create `.local/plugin-smoke` in a clean checkout. The local check had reused an
+existing `.local` directory, and source review did not execute that workflow
+snippet in an empty workspace. Explicit `mkdir -p` corrected it; the complete
+shell step then passed from a newly created workspace with only the release
+executable and ZIP present. Workflow setup checks must start without ignored
+working directories to detect this class of failure.
+
 The package is a skill for a local shell environment, with the CLI installed
 separately. Its stdio MCP server is not a hosted directory connection. Native
 Apple library access and real Google-account OAuth/Picker were not retested in
