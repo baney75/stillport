@@ -18,6 +18,33 @@ const item = {
     mediaFileMetadata: { width: 100, height: 100 },
   },
 };
+test("cancelling a Google JSON body reports cancellation, not malformed data", async () => {
+  const abort = new AbortController();
+  const result = requestJson(
+    "https://photospicker.googleapis.com/v1/sessions/session",
+    { signal: abort.signal },
+    async (_url, init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"id":'));
+            init!.signal!.addEventListener(
+              "abort",
+              () => {
+                controller.error(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true },
+            );
+            queueMicrotask(() => abort.abort());
+          },
+        }),
+      ),
+  );
+  await expect(result).rejects.toMatchObject({ code: "CANCELLED" });
+  await expect(
+    requestJson("https://example.com", {}, async () => new Response("{broken")),
+  ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+});
 test("Picker create, selected item pagination and download use the documented wire contract", async () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   const root = await mkdtemp(join(tmpdir(), "stillport-google-"));

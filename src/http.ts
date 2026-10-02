@@ -3,6 +3,7 @@ import {
   cancellationError,
   fail,
   timeoutSignal,
+  throwIfCancelled,
   waitFor,
 } from "./core";
 export type Fetcher = (
@@ -69,10 +70,14 @@ export async function requestJson<T>(
       );
     }
     if (response.ok) {
+      throwIfCancelled(init.signal ?? undefined);
       if (response.status === 204) return {} as T;
       try {
-        return (await response.json()) as T;
+        const result = (await response.json()) as T;
+        throwIfCancelled(init.signal ?? undefined);
+        return result;
       } catch {
+        if (init.signal?.aborted) cancellationError();
         return fail("INVALID_RESPONSE", "The service returned invalid JSON.");
       }
     }

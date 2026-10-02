@@ -1,5 +1,39 @@
 # Verification
 
+## 0.1.3 plugin candidate, October 2, 2026
+
+The local candidate passed TypeScript checking and 28 tests with 207 assertions,
+a standalone macOS ARM64 build, installer/demo shell syntax checking, and
+`git diff --check`. The compiled MCP server initialized protocol `2025-06-18`,
+discovered 12 tools, and returned provider capabilities.
+
+An independent protocol review reproduced cancellation during a Google JSON
+response body returning `INVALID_RESPONSE`. The previous MCP cancellation test
+used a runner that already threw `CANCELLED`, so it could not detect the provider
+body catch. A streaming HTTP regression failed before the repair and passed
+afterward. A separate MCP test now cancels the real Google provider's pending
+synthetic JSON body through `notifications/cancelled` and requires `CANCELLED`.
+Malformed JSON without cancellation still returns `INVALID_RESPONSE`.
+
+The plugin ZIP contains 11 explicitly listed public files. Tests extracted it,
+checked icon and onboarding resources, rejected missing files, symlinks, and
+version mismatches, excluded added private files, and compared two builds byte
+for byte. SHA-256: `443b1fa7e682ea17b6b4656ce72de746c92c5835eb5dbf8aedc4ca2bffb739c7`.
+The skill validator passed. Codex installed the local marketplace plugin as
+`stillport@stillport-marketplace` version `0.1.3`.
+
+The extracted ZIP's public fixture completed import, caption search, preview,
+and export through the compiled CLI. The generated preview was visually inspected
+and matched the committed demo JPEG. The export matched the source PNG's hash,
+the source stayed unchanged, and the exported file had mode `0600`. CI now runs
+the extracted fixture on macOS and Linux alongside source and compiled checks.
+
+The package is a skill for a local shell environment, with the CLI installed
+separately. Its stdio MCP server is not a hosted directory connection. Native
+Apple library access and real Google-account OAuth/Picker were not retested in
+this pass. Directory upload, scan acceptance, review approval, and publication
+are separate external states; local packaging and installation do not prove them.
+
 Initial implementation checks, September 2026:
 
 - Live Apple Photos on macOS: native search, date query, pagination across distinct results, item lookup, album listing, a 1600-pixel preview, and original export passed. An unavailable item produced an explicit empty-export error and left no partial files. Apple is addressed by its bundle ID; resolving an app by display name produced an incorrect scripting target during development.

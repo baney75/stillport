@@ -17,6 +17,7 @@ jobs:
         run: test "v$(bun src/cli.ts --version)" = "$GITHUB_REF_NAME"
       - run: bun run check
       - run: bun scripts/build.ts --all
+      - run: bun run package:plugin
       - name: Smoke test Linux release
         run: |
           chmod +x dist/stillport-linux-x64

@@ -1,0 +1,12 @@
+{
+  "name": "stillport-marketplace",
+  "interface": { "displayName": "Stillport" },
+  "plugins": [
+    {
+      "name": "stillport",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

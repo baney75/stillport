@@ -10,6 +10,26 @@ Stillport gives AI agents a CLI and an MCP server for Apple Photos, Google Photo
 
 Built in TypeScript with Bun. Standalone releases require neither Node nor Bun. No hosted intermediary, telemetry, or AI API key.
 
+## Install in Codex
+
+Add the repository marketplace and install the Stillport skill:
+
+```sh
+codex plugin marketplace add baney75/stillport --ref v0.1.3
+codex plugin add stillport@stillport-marketplace
+```
+
+Start a new chat and ask Stillport to set up the CLI and test the included public
+photo fixture. The plugin contains the skill, installer, setup guide, and fixture;
+it needs a local macOS or Linux shell. Apple Photos requires a Mac and Automation
+permission. Google requires your own OAuth Desktop client and selection in Picker.
+The CLI installation below supplies the executable the skill uses.
+
+The plugin uses local shell commands. Its stdio MCP integration is documented
+[below](#mcp). A cloud or mobile chat without a suitable local execution environment
+cannot reach your computer's photo library. See [plugin packaging](docs/plugin.md)
+for ZIP builds and the universal-directory submission workflow.
+
 ## Install
 
 macOS and Linux, Apple Silicon/ARM64 or Intel/x64:
@@ -164,11 +184,12 @@ bun install --frozen-lockfile --ignore-scripts
 bun run check
 bun run dev -- capabilities
 bun run build
+bun run package:plugin
 # Cross-compile all four release binaries:
 bun scripts/build.ts --all
 ```
 
-Bun 1.3.10+; releases build with 1.3.14. Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS and Linux and checks a compiled executable. Tagging `vX.Y.Z` builds all release binaries and publishes their checksums, provided the tag matches `package.json`.
+Bun 1.3.10+; releases build with 1.3.14. Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS and Linux and checks a compiled executable. Tagging `vX.Y.Z` builds all release binaries, the plugin ZIP, and their checksums, provided the tag matches `package.json` and `plugin.json`.
 
 For source installs, update with `git pull --ff-only && bun install --frozen-lockfile --ignore-scripts`. `stillport update` manages standalone binaries.
 

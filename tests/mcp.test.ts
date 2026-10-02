@@ -1,6 +1,62 @@
 import { test, expect } from "bun:test";
 import { McpServer } from "../src/mcp";
 import { cancellationError } from "../src/core";
+import { GooglePhotos } from "../src/providers/google";
+
+test("MCP cancellation reaches a pending Google JSON body", async () => {
+  let bodyStarted!: () => void;
+  const loading = new Promise<void>((resolve) => (bodyStarted = resolve));
+  const google = new GooglePhotos(
+    async () => "test-only-token",
+    async (_url, init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"id":'));
+            init!.signal!.addEventListener(
+              "abort",
+              () => controller.error(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+            bodyStarted();
+          },
+        }),
+      ),
+  );
+  const server = new McpServer(
+    "default",
+    async (command, id, _options, _notify, signal) => {
+      expect(command).toBe("google session");
+      return google.session(id!, signal);
+    },
+  );
+  await server.handle({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {},
+  });
+  const request = server.handle({
+    jsonrpc: "2.0",
+    id: "session-body",
+    method: "tools/call",
+    params: {
+      name: "stillport_google_session",
+      arguments: { session: "synthetic" },
+    },
+  });
+  await loading;
+  await server.handle({
+    jsonrpc: "2.0",
+    method: "notifications/cancelled",
+    params: { requestId: "session-body" },
+  });
+  const response = await request;
+  expect(response.result.isError).toBe(true);
+  expect(JSON.parse(response.result.content[0].text).error.code).toBe(
+    "CANCELLED",
+  );
+});
 test("MCP handshake, discovery, strict validation, tool results and notifications", async () => {
   const server = new McpServer();
   const call = (method: string, params?: unknown) =>

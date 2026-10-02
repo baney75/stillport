@@ -26,3 +26,11 @@ jobs:
           dist/stillport-* doctor
           dist/stillport-* capabilities
       - run: sh -n install.sh
+      - run: bun run package:plugin
+      - name: Exercise the extracted plugin fixture
+        run: |
+          unzip -q dist/stillport-plugin-*.zip -d .local/plugin-smoke
+          for binary in "$PWD"/dist/stillport-*; do
+            case "$binary" in *.zip|*.sha256) continue ;; esac
+            STILLPORT_BIN="$binary" sh .local/plugin-smoke/examples/takeout-demo/run.sh .local/plugin-output
+          done
