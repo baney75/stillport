@@ -11,7 +11,7 @@ Stillport uses your own OAuth Desktop app client. There is no shared hosted OAut
 
 The requested scope is `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`. Public distribution of an OAuth client can require Google verification; publishing this CLI does not supply or verify a shared client. Test-mode authorizations can expire and need sign-in again.
 
-OAuth uses S256 PKCE, a random state, and a short-lived loopback callback bound to `127.0.0.1` on a random port. Access tokens, refresh tokens, and client configuration go into macOS Keychain or Linux Secret Service through Bun’s OS credential API. Stillport does not fall back to plaintext token files. Linux needs a running, unlocked credential service.
+OAuth uses S256 PKCE, a random state, and a short-lived loopback callback bound to `127.0.0.1` on a random port. Access tokens, refresh tokens, and client configuration go into macOS Keychain, Windows Credential Manager or Linux Secret Service through Bun’s OS credential API. Stillport does not fall back to plaintext token files. Linux needs a running, unlocked credential service.
 
 For environments without a browser on the same machine, supply a short-lived access token with the Picker scope in `STILLPORT_GOOGLE_ACCESS_TOKEN` using your agent host’s secret configuration. Stillport will not refresh environment tokens. Do not pass tokens on the command line or in chat. This token takes precedence over stored profiles for every Google command. `auth logout` cannot unset an environment token.
 

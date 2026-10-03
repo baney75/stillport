@@ -9,7 +9,8 @@ import {
   type Media,
 } from "../core";
 import { providerHttpError, requestJson, type Fetcher } from "../http";
-import { open } from "node:fs/promises";
+import { previewImage } from "../image";
+import { open, readFile } from "node:fs/promises";
 import { join } from "node:path";
 const BASE = "https://photospicker.googleapis.com/v1";
 export interface Session {
@@ -230,12 +231,30 @@ export class GooglePhotos {
             "Start a new Picker session and select the item again.",
             4,
           );
-        const max = 1024 * 1024 * 1024;
+        const max = preview ? 20 * 1024 * 1024 : 1024 * 1024 * 1024;
+        const sizeMessage = preview
+          ? "Previews are limited to 20 MiB per item."
+          : "Downloads are limited to 1 GiB per item.";
         if (Number(response.headers.get("content-length")) > max) {
           await response.body.cancel();
-          fail("FILE_TOO_LARGE", "Downloads are limited to 1 GiB per item.");
+          fail("FILE_TOO_LARGE", sizeMessage);
         }
-        const type = response.headers.get("content-type")?.split(";")[0] || "";
+        const type =
+          response.headers
+            .get("content-type")
+            ?.split(";")[0]
+            ?.trim()
+            .toLowerCase() || "";
+        if (
+          preview &&
+          !["image/jpeg", "image/png", "image/webp"].includes(type)
+        ) {
+          await response.body.cancel();
+          fail(
+            "PREVIEW_INVALID",
+            "Google returned an unsupported still preview response.",
+          );
+        }
         if (!/^(image\/|video\/|application\/octet-stream)/.test(type)) {
           await response.body.cancel();
           fail(
@@ -267,11 +286,7 @@ export class GooglePhotos {
             throwIfCancelled(signal);
             if (done) break;
             total += value.byteLength;
-            if (total > max)
-              fail(
-                "FILE_TOO_LARGE",
-                "Downloads are limited to 1 GiB per item.",
-              );
+            if (total > max) fail("FILE_TOO_LARGE", sizeMessage);
             await file.writeFile(value);
           }
           if (!total)
@@ -283,6 +298,21 @@ export class GooglePhotos {
           signal?.removeEventListener("abort", cancel);
           await reader.cancel().catch(() => {});
           await file.close();
+        }
+        if (preview) {
+          const image = previewImage(await readFile(join(staging, name)));
+          const expected = type === "image/jpeg" ? "jpg" : type.slice(6);
+          if (
+            !image ||
+            image.format !== expected ||
+            image.width > 1600 ||
+            image.height > 1600
+          )
+            fail(
+              "PREVIEW_INVALID",
+              "Google returned an invalid or oversized still preview.",
+              "Start a new Picker session or export the item instead.",
+            );
         }
       },
       signal,

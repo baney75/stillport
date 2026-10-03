@@ -15,13 +15,13 @@ Built in TypeScript with Bun. Standalone releases require neither Node nor Bun. 
 Add the repository marketplace and install the Stillport skill:
 
 ```sh
-codex plugin marketplace add baney75/stillport --ref v0.1.3
+codex plugin marketplace add baney75/stillport --ref v0.2.0
 codex plugin add stillport@stillport-marketplace
 ```
 
 Start a new chat and ask Stillport to set up the CLI and test the included public
 photo fixture. The plugin contains the skill, installer, setup guide, and fixture;
-it needs a local macOS or Linux shell. Apple Photos requires a Mac and Automation
+it needs a local macOS, Windows or Linux shell. Apple Photos requires a Mac and Automation
 permission. Google requires your own OAuth Desktop client and selection in Picker.
 The CLI installation below supplies the executable the skill uses.
 
@@ -59,6 +59,26 @@ cp ~/.local/bin/stillport ~/.local/bin/stillport.failed
 cp ~/.local/bin/stillport.previous ~/.local/bin/stillport
 stillport --version
 ```
+
+### Windows
+
+Download and inspect [install.ps1](install.ps1), then run it from PowerShell:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/baney75/stillport/v0.2.0/install.ps1 -OutFile install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.0
+```
+
+The installer chooses x64 or ARM64, verifies the release checksum and version,
+installs into `%LOCALAPPDATA%\Programs\Stillport`, and adds that directory to your
+user PATH. Open a new terminal and run `stillport doctor`. It needs no administrator
+rights. Use `-InstallDir 'D:\My tools\Stillport'` for another location or `-NoPath`
+to leave PATH unchanged. See [Windows setup and recovery](docs/windows.md).
+
+Windows updates return `pending: true` and a status-file path. A helper waits for
+the running executable to exit, verifies the staged checksum again, and replaces
+it. Read the status file to confirm `applied`; the response includes the rollback
+executable's path. Apple Photos remains available only on a Mac.
 
 ## Choose a provider
 
@@ -121,7 +141,25 @@ stillport export 'PHOTO_ID' --source takeout --out ./photos
 
 Imports metadata from extracted media and JSON sidecars, including supplemental metadata files. Search covers filenames, captions, and folder names. It cannot reproduce Google’s private people, object, or OCR index. The archive stays where it is; Stillport keeps a private SQLite index. Re-import the same directory to update it and remove stale entries. Separate archive copies are separate items; there is no content-based deduplication.
 
-On macOS, `preview` asks `sips` for a correctly oriented JPEG with a maximum edge of 1600 pixels. On Linux, it copies JPEG, PNG, GIF, WebP, or AVIF stills into a new private folder without resizing; HEIC, RAW, and TIFF previews need macOS or an external viewer. `export` always copies the indexed file unchanged. Neither command edits the archive.
+On macOS, `preview` asks `sips` for a correctly oriented JPEG with a maximum edge of 1600 pixels. On Windows, the system decoder makes an EXIF-oriented JPEG bounded to 1600 pixels for JPEG, PNG, GIF, TIFF and BMP. WebP and AVIF are copied unchanged. On Linux, it copies JPEG, PNG, GIF, WebP, or AVIF stills into a new private folder without resizing; HEIC, RAW, and TIFF previews need macOS or an external viewer. `export` always copies the indexed file unchanged. Neither command edits the archive.
+
+Browse one result page as an offline gallery:
+
+```sh
+stillport gallery --source takeout --query "harbor" --limit 40 --out ./galleries
+```
+
+Open the returned `indexHtml` locally, or add `--open` to open it from the CLI.
+The gallery shows local still previews, titles, dates, captions and opaque IDs;
+its search field filters the current page. Each image is limited to 20 MiB, and
+the gallery keeps at most 200 MiB of previews. `nextCursor` retrieves the next page.
+Video and unavailable previews remain visible as placeholders. It loads no remote
+assets and includes no original source paths. Galleries contain personal metadata
+and remain on disk until you remove them.
+
+If an archive moves, run `stillport takeout archives` to see unavailable indexed
+folders. `stillport takeout forget ARCHIVE_ID` removes that archive's index entries
+only. Import its new folder to restore retrieval. This never deletes source media.
 
 To exercise the full Takeout path without using a personal library, clone the repository and run its [synthetic public harbor fixture](examples/takeout-demo/):
 
@@ -171,7 +209,7 @@ Use the absolute path printed by `command -v stillport` in your MCP client’s c
 }
 ```
 
-The stdio server exposes provider discovery, search, listing, albums, selection, metadata, previews, exports, and Google Picker sessions. Authenticate Google once using the CLI before starting the server. Use `args: ["mcp", "--profile", "personal"]` for a named profile. MCP does not expose credential management, self-update, or archive import.
+The stdio server exposes provider discovery, search, listing, albums, selection, metadata, previews, exports, offline galleries, archive recovery, and Google Picker sessions. Authenticate Google once using the CLI before starting the server. Use `args: ["mcp", "--profile", "personal"]` for a named profile. MCP does not expose credential management, self-update, or archive import.
 
 Prefer shell tools? Read the portable [agent skill](skills/stillport/SKILL.md), or run `stillport agent skill` to retrieve its contents as JSON. The agent can then use its own image-reading tool on an exported preview.
 
@@ -185,11 +223,11 @@ bun run check
 bun run dev -- capabilities
 bun run build
 bun run package:plugin
-# Cross-compile all four release binaries:
+# Cross-compile all six release binaries:
 bun scripts/build.ts --all
 ```
 
-Bun 1.3.10+; releases build with 1.3.14. Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS and Linux and checks a compiled executable. Tagging `vX.Y.Z` builds all release binaries, the plugin ZIP, and their checksums, provided the tag matches `package.json` and `plugin.json`.
+Bun 1.4.2+; CI and releases use 1.4.2. Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS, Linux, Windows x64 and Windows ARM64, including native executable checks. Tagging `vX.Y.Z` builds all release binaries, the plugin ZIP, and their checksums, provided the tag matches `package.json` and `plugin.json`.
 
 For source installs, update with `git pull --ff-only && bun install --frozen-lockfile --ignore-scripts`. `stillport update` manages standalone binaries.
 

@@ -18,7 +18,7 @@ or photo metadata to its maintainer.
   the documented environment-variable route. Only items selected by a person in
   Picker are available to Stillport. Downloads are written locally.
 - **Google Takeout:** filenames, paths, captions, folder names, and available dates
-  are indexed in `takeout.sqlite` under `~/.local/share/stillport`, or the directory
+  are indexed in `takeout.sqlite` under `~/.local/share/stillport` on macOS/Linux or `%LOCALAPPDATA%\Stillport` on Windows (existing legacy state is preserved), or the directory
   you choose with `STILLPORT_HOME`. Import does not copy media or upload the archive.
 - **Installation and updates:** release downloads contact GitHub. GitHub receives
   ordinary network request information under its own privacy policy.
@@ -31,8 +31,13 @@ the surrounding agent host local or private. Share only the photos your task nee
 
 ## Retention and controls
 
+Galleries write local preview images and HTML with captions, dates and opaque IDs.
+They load no remote assets; remove the generated folder when no longer needed.
+
 The Takeout index remains until you remove it; re-importing the same archive
-replaces that archive's rows and removes entries for missing files. Exported and
+replaces that archive's rows and removes entries for missing files.
+`takeout forget ARCHIVE_ID` removes only the chosen archive's index entries, without
+deleting photos. Exported and
 previewed files remain in the output directory until you remove them. Failed or
 cancelled exports remove their staging folders.
 

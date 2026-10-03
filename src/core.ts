@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, rename, rm, chmod } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, chmod, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import pkg from "../package.json";
+import { makePrivateWindows, safeFilename, stateDirectory } from "./platform";
 
 export const VERSION = pkg.version;
 export const REPO = "baney75/stillport";
@@ -57,13 +57,16 @@ export function fail(
   throw new PortError(code, message, hint, exitCode);
 }
 export function dataDir() {
-  return resolve(
-    process.env.STILLPORT_HOME ||
-      join(homedir(), ".local", "share", "stillport"),
-  );
+  return resolve(stateDirectory());
 }
 export async function privateDir(path: string) {
   await mkdir(path, { recursive: true, mode: 0o700 });
+  await makePrivateWindows(path);
+  if (process.platform === "win32" && resolve(path) === dataDir()) {
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      if (entry.isFile()) await makePrivateWindows(join(path, entry.name));
+    }
+  }
 }
 export function fingerprint(value: unknown) {
   return createHash("sha256")
@@ -100,19 +103,14 @@ export function cursorFor(offset: number, scope: unknown) {
 export function mediaKind(name: string): Media["kind"] {
   return /\.(mov|mp4|m4v|avi|webm|3gp|mkv)$/i.test(name)
     ? "video"
-    : /\.(jpe?g|png|heic|heif|gif|webp|tiff?|dng|avif|raw|cr2|nef|arw)$/i.test(
+    : /\.(jpe?g|png|heic|heif|gif|bmp|webp|tiff?|dng|avif|raw|cr2|nef|arw)$/i.test(
           name,
         )
       ? "photo"
       : "unknown";
 }
 export function safeName(name: string) {
-  return (
-    name
-      .replace(/[\\/\x00-\x1f\x7f<>:"|?*]/g, "_")
-      .replace(/^\.+/, "_")
-      .slice(0, 160) || "photo"
-  );
+  return safeFilename(name);
 }
 export function asError(error: unknown) {
   return error instanceof PortError
@@ -207,11 +205,13 @@ export async function exportDirectory(
 ) {
   throwIfCancelled(signal);
   const parent = resolve(out);
-  await privateDir(parent);
+  // The caller may choose an existing shared folder. Only the fresh export is private.
+  await mkdir(parent, { recursive: true, mode: 0o700 });
   throwIfCancelled(signal);
   const staging = await mkdtemp(join(parent, ".stillport-"));
   try {
     await chmod(staging, 0o700);
+    await makePrivateWindows(staging);
     throwIfCancelled(signal);
     await work(staging);
     throwIfCancelled(signal);

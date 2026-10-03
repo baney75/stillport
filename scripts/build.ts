@@ -6,18 +6,25 @@ const targets = process.argv.includes("--all")
       "bun-darwin-x64",
       "bun-linux-arm64",
       "bun-linux-x64-baseline",
+      "bun-windows-x64",
+      "bun-windows-arm64",
     ]
   : [
-      `bun-${process.platform}-${process.arch}${process.platform === "linux" && process.arch === "x64" ? "-baseline" : ""}`,
+      `bun-${process.platform === "win32" ? "windows" : process.platform}-${process.arch}${process.platform === "linux" && process.arch === "x64" ? "-baseline" : ""}`,
     ];
 await mkdir("dist", { recursive: true });
 const sums: string[] = [];
 for (const target of targets) {
   const name =
-    "stillport-" + target.replace("bun-", "").replace("-baseline", "");
+    "stillport-" +
+    target.replace("bun-", "").replace("-baseline", "") +
+    (target.includes("windows") ? ".exe" : "");
   const result = await Bun.build({
     entrypoints: ["./src/cli.ts"],
-    compile: { target: target as any, outfile: `dist/${name}` },
+    compile: {
+      target: target as Bun.Build.CompileTarget,
+      outfile: `dist/${name}`,
+    },
     minify: true,
     sourcemap: "none",
   });

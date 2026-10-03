@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+import { createGallery } from "./gallery";
 import { existsSync } from "node:fs";
 import {
   API_VERSION,
@@ -122,7 +124,12 @@ export async function dispatch(
       2,
     );
   const query: SearchOptions = {
-    query: command === "search" ? argument : undefined,
+    query:
+      command === "search"
+        ? argument
+        : command === "gallery"
+          ? str(options, "query")
+          : undefined,
     limit,
     cursor,
     after,
@@ -194,7 +201,9 @@ export async function dispatch(
           credentialStore:
             process.platform === "darwin"
               ? "macOS Keychain"
-              : "OS credential store",
+              : process.platform === "win32"
+                ? "Windows Credential Manager"
+                : "Linux Secret Service",
           headless: "STILLPORT_GOOGLE_ACCESS_TOKEN",
           permission: "not-probed",
         },
@@ -277,6 +286,57 @@ export async function dispatch(
         signal,
       );
     }
+    case "gallery": {
+      if (
+        source === "google" &&
+        (query.query || after || before || options.favorite || options.album)
+      )
+        fail(
+          "INTERACTIVE_SEARCH_REQUIRED",
+          "Search Google Photos inside Picker, then create a gallery from the selected session.",
+          "Run stillport google pick.",
+          2,
+        );
+      const make = async (
+        items: import("./core").Media[],
+        nextCursor: string | null,
+        preview: Parameters<typeof createGallery>[2],
+      ) => {
+        const result = await createGallery(
+          items,
+          str(options, "out")!,
+          preview,
+          signal,
+        );
+        return {
+          ...result,
+          nextCursor,
+          ...(options.open
+            ? {
+                opened: await openBrowser(pathToFileURL(result.indexHtml).href),
+              }
+            : {}),
+        };
+      };
+      if (source === "takeout")
+        return withTakeout(async (t) => {
+          const results = t.search(query);
+          return make(results.items, results.nextCursor, (item, out, signal) =>
+            t.preview(item.id, out, signal),
+          );
+        });
+      if (source === "apple") {
+        const results = await appleSearch(query, false, signal);
+        return make(results.items, results.nextCursor, (item, out, signal) =>
+          appleExport(item.id, out, false, true, signal),
+        );
+      }
+      const pickerSession = session();
+      const results = await google.items(pickerSession, limit, cursor, signal);
+      return make(results.items, results.nextCursor, (item, out, signal) =>
+        google.download(pickerSession, item.id, out, true, signal),
+      );
+    }
     case "reveal":
       return appleCall({ action: "reveal", id: argument }, signal);
     case "auth google":
@@ -322,6 +382,10 @@ export async function dispatch(
       return google.close(argument!, signal);
     case "takeout import":
       return withTakeout((t) => t.import(argument!, signal));
+    case "takeout archives":
+      return withTakeout((t) => t.archives(limit, cursor));
+    case "takeout forget":
+      return withTakeout((t) => t.forget(argument!));
     case "agent skill":
       return { name: "stillport", content: skill };
     case "update":

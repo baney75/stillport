@@ -3,20 +3,26 @@ name: stillport
 description: Search and retrieve photos from Apple Photos, Google Photos Picker, or local Google Takeout archives through the Stillport CLI. Use for finding photos, reading album contents, or exporting selected media for an agent to inspect.
 ---
 
-This skill requires a local macOS or Linux shell, the Stillport CLI, and the
+This skill requires a local macOS, Windows or Linux shell, the Stillport CLI, and the
 chosen provider's setup. It cannot access the user's Mac library from a cloud
 or mobile chat without a connected local execution environment.
 
-Start with `command -v stillport`, then `stillport --version` and `stillport doctor`.
+Start with `command -v stillport` on macOS/Linux or `Get-Command stillport` in PowerShell, then `stillport --version` and `stillport doctor`.
 If it is absent, the package includes [the installer](../../install.sh). When
 installation is authorized, inspect it and run
-`STILLPORT_VERSION=v0.1.3 sh /absolute/path/to/plugin/install.sh`.
+`STILLPORT_VERSION=v0.2.0 sh /absolute/path/to/plugin/install.sh`.
 It needs `curl` and `shasum` or `sha256sum`, downloads the matching standalone
 release from `baney75/stillport`, verifies its checksum, and installs into
 `~/.local/bin`. Use the resulting absolute executable path if it is outside PATH.
 Do not install software or grant provider permissions just because this skill was
 loaded. Existing task authorization governs setup. No Bun or Node is needed for
-the standalone CLI. Source installations need Bun 1.3.10+.
+the standalone CLI. Source installations need Bun 1.4.2+.
+
+On Windows, inspect [install.ps1](../../install.ps1), then run
+`powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\plugin\install.ps1 -Version v0.2.0`
+within authorized setup. It chooses native x64 or ARM64, verifies the release and
+installs under `%LOCALAPPDATA%\Programs\Stillport`. Open a new terminal or use the
+absolute executable path. Run `examples/takeout-demo/run.ps1` for the public fixture.
 
 For a setup check without personal photos, run the included
 `examples/takeout-demo/run.sh /absolute/path/to/demo-output` from the plugin root.
@@ -32,7 +38,18 @@ Apple Photos: `stillport search "dogs at the beach" --source apple --limit 10` f
 
 Google Photos: existing-library search requires the user in the native Picker. Run `stillport google pick`, share `data.pickerUri`, and check `google session SESSION` at `pollingConfig.pollInterval` until `mediaItemsSet` is true. Stop at `timeoutIn` or session expiry. Then use `google items SESSION`. Do not claim that a selection grants background access to the entire library. Pass `--session SESSION --source google` to `get`, `preview`, or `export`. Close the session after the user’s retrieval task finishes. Do not close it before downloads finish.
 
-Takeout: `stillport takeout import /path/to/extracted/Google-Photos`, then `search "query" --source takeout`. This searches filenames, captions, and folder names, not Google’s private face/object/OCR index. `get ID --source takeout` includes the local path. `preview ID --source takeout --out /path/to/output` makes a bounded JPEG on macOS; Linux copies web-readable stills unchanged and returns a clear error for HEIC, RAW, or TIFF. Re-import to refresh; originals remain in the archive.
+Takeout: `stillport takeout import /path/to/extracted/Google-Photos`, then `search "query" --source takeout`. This searches filenames, captions, and folder names, not Google’s private face/object/OCR index. `get ID --source takeout` includes the local path. `preview ID --source takeout --out /path/to/output` makes a bounded JPEG on macOS and for JPEG/PNG/GIF/TIFF/BMP on Windows; Linux copies web-readable stills unchanged and returns a clear error for HEIC, RAW, or TIFF. Re-import to refresh; originals remain in the archive. Use `takeout archives` to
+find unavailable indexed folders after a move; `takeout forget ARCHIVE_ID` removes
+only that archive's index entries. Import its new folder to restore access.
+
+`gallery --source takeout --query "harbor" --out /path/to/output` makes an offline
+HTML contact sheet for one result page. Apple and Google Picker also support it;
+Google requires `--session SESSION` and interactive selection first. The result
+returns `indexHtml`, `previewCount`, warnings and `nextCursor`. Gallery filtering
+searches this page only. Video or unavailable previews show placeholders. Open
+only when requested; do not add `--open` automatically. Inspect local images with
+the host's image tool. HTML galleries include captions and dates, so share them
+only within the authorized task.
 
 Retrieve only the media needed for the task. `preview ID --source apple --out /path/to/output` produces a smaller still image; `export ID --source apple --original --out /path/to/output` requests originals. Every export returns actual local paths in a new folder. Use the agent host’s image/file tool to inspect the result. Google downloads omit image GPS metadata and transcode videos. Apple cloud-only media may need Photos to download it.
 

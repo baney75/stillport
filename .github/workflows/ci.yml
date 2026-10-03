@@ -9,25 +9,28 @@ jobs:
   check:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"
+          bun-version: "1.4.2"
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check
       - run: bun run build
       - name: Smoke test standalone binary
+        if: runner.os != 'Windows'
         run: |
           chmod +x dist/stillport-*
           dist/stillport-* --version
           dist/stillport-* doctor
           dist/stillport-* capabilities
       - run: sh -n install.sh
+        if: runner.os != 'Windows'
       - run: bun run package:plugin
       - name: Exercise the extracted plugin fixture
+        if: runner.os != 'Windows'
         run: |
           mkdir -p .local/plugin-smoke
           unzip -q dist/stillport-plugin-*.zip -d .local/plugin-smoke
@@ -35,3 +38,30 @@ jobs:
             case "$binary" in *.zip|*.sha256) continue ;; esac
             STILLPORT_BIN="$binary" sh .local/plugin-smoke/examples/takeout-demo/run.sh .local/plugin-output
           done
+      - name: Exercise native Windows release and fixture
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $arch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'arm64' } else { 'x64' }
+          $binary = (Resolve-Path "dist/stillport-windows-$arch.exe").Path
+          $env:STILLPORT_WINDOWS_BINARY = $binary
+          & $binary --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native version check failed.' }
+          & $binary doctor
+          if ($LASTEXITCODE -ne 0) { throw 'Native doctor failed.' }
+          & $binary capabilities
+          if ($LASTEXITCODE -ne 0) { throw 'Native capabilities failed.' }
+          $responses = @(
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}',
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+          ) | & $binary mcp
+          if ($LASTEXITCODE -ne 0) { throw 'MCP process failed.' }
+          $messages = @($responses | ForEach-Object { $_ | ConvertFrom-Json })
+          if (-not (@($messages | Where-Object { $_.id -eq 2 })[0].result.tools.name -contains 'stillport_capabilities')) { throw 'Native MCP tool discovery failed.' }
+          $env:STILLPORT_BIN = $binary
+          & "$PWD/examples/takeout-demo/run.ps1" "$PWD/.local/plugin-output"
+          bun -e 'const key={service:"dev.stillport.ci",name:"roundtrip"}; try { await Bun.secrets.set({...key,value:"test-only"}); if (await Bun.secrets.get(key)!=="test-only") throw new Error("Windows Credential Manager round trip failed"); } finally { await Bun.secrets.delete(key); }'
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Credential Manager round trip failed.' }
+          bun test tests/windows.test.ts
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows tests failed.' }

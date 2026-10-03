@@ -1,3 +1,4 @@
+import { makeWindowsPreview } from "../windows-preview";
 import { Database } from "bun:sqlite";
 import {
   readdir,
@@ -32,7 +33,22 @@ import {
   type SearchOptions,
 } from "../core";
 const extensions =
-  /\.(jpe?g|png|heic|heif|gif|webp|tiff?|dng|avif|raw|cr2|nef|arw|mov|mp4|m4v|avi|webm|3gp|mkv)$/i;
+  /\.(jpe?g|png|heic|heif|gif|bmp|webp|tiff?|dng|avif|raw|cr2|nef|arw|mov|mp4|m4v|avi|webm|3gp|mkv)$/i;
+interface SearchRow {
+  id: string;
+  filename: string;
+  title: string;
+  description: string;
+  album: string;
+}
+function folded(value: string) {
+  return value.normalize("NFC").toLowerCase();
+}
+function searchText(row: SearchRow) {
+  return [row.filename, row.title, row.description, row.album]
+    .map(folded)
+    .join("\0");
+}
 export class Takeout {
   private constructor(private db: Database) {}
   static async open() {
@@ -48,6 +64,26 @@ export class Takeout {
     db.exec(
       "PRAGMA busy_timeout=5000; PRAGMA journal_mode=DELETE; CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, root TEXT NOT NULL, path TEXT NOT NULL, filename TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, takenAt TEXT, kind TEXT NOT NULL, album TEXT NOT NULL); CREATE INDEX IF NOT EXISTS media_date ON media(takenAt); CREATE INDEX IF NOT EXISTS media_root ON media(root);",
     );
+    const columns = db
+      .query<{ name: string }, []>("PRAGMA table_info(media)")
+      .all();
+    if (!columns.some((column) => column.name === "searchText")) {
+      db.exec(
+        "ALTER TABLE media ADD COLUMN searchText TEXT NOT NULL DEFAULT ''",
+      );
+    }
+    const unindexed = db
+      .query<
+        SearchRow,
+        []
+      >("SELECT id,filename,title,description,album FROM media WHERE searchText=''")
+      .all();
+    if (unindexed.length) {
+      const update = db.prepare("UPDATE media SET searchText=? WHERE id=?");
+      db.transaction(() => {
+        for (const row of unindexed) update.run(searchText(row), row.id);
+      })();
+    }
     return new Takeout(db);
   }
   close() {
@@ -150,7 +186,7 @@ export class Takeout {
     throwIfCancelled(signal);
     // Replace only this archive's index in one transaction, including removed files.
     const insert = this.db.prepare(
-      "INSERT INTO media VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET root=excluded.root,path=excluded.path,filename=excluded.filename,title=excluded.title,description=excluded.description,takenAt=excluded.takenAt,kind=excluded.kind,album=excluded.album",
+      "INSERT INTO media (id,root,path,filename,title,description,takenAt,kind,album,searchText) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET root=excluded.root,path=excluded.path,filename=excluded.filename,title=excluded.title,description=excluded.description,takenAt=excluded.takenAt,kind=excluded.kind,album=excluded.album,searchText=excluded.searchText",
     );
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -171,6 +207,7 @@ export class Takeout {
           record.takenAt,
           record.kind,
           record.album,
+          searchText(record),
         );
       }
       throwIfCancelled(signal);
@@ -204,10 +241,8 @@ export class Takeout {
     const clauses: string[] = [];
     const values: (string | number)[] = [];
     if (options.query) {
-      clauses.push(
-        "(instr(lower(filename),lower(?))>0 OR instr(lower(title),lower(?))>0 OR instr(lower(description),lower(?))>0 OR instr(lower(album),lower(?))>0)",
-      );
-      values.push(...Array(4).fill(options.query));
+      clauses.push("instr(searchText,?)>0");
+      values.push(folded(options.query));
     }
     if (options.after) {
       clauses.push("takenAt>=?");
@@ -248,6 +283,62 @@ export class Takeout {
     return {
       items: rows.slice(0, limit),
       nextCursor: rows.length > limit ? cursorFor(offset + limit, scope) : null,
+    };
+  }
+  async archives(limit: number, cursor?: string) {
+    const scope = { source: "takeout", command: "archives", limit };
+    const offset = cursorOffset(cursor, scope);
+    const rows = this.db
+      .query<
+        {
+          root: string;
+          itemCount: number;
+          firstTakenAt: string | null;
+          lastTakenAt: string | null;
+        },
+        [number, number]
+      >("SELECT root,COUNT(*) AS itemCount,MIN(takenAt) AS firstTakenAt,MAX(takenAt) AS lastTakenAt FROM media GROUP BY root ORDER BY root LIMIT ? OFFSET ?")
+      .all(limit + 1, offset);
+    const items = await Promise.all(
+      rows.slice(0, limit).map(async (row) => ({
+        ...row,
+        id: fingerprint(["archive", row.root]),
+        folderExists: await Promise.all([
+          stat(row.root),
+          realpath(row.root),
+        ]).then(
+          ([info, canonical]) => info.isDirectory() && canonical === row.root,
+          () => false,
+        ),
+      })),
+    );
+    return {
+      items,
+      nextCursor: rows.length > limit ? cursorFor(offset + limit, scope) : null,
+    };
+  }
+  forget(archiveId: string) {
+    const roots = this.db
+      .query<{ root: string }, []>("SELECT DISTINCT root FROM media")
+      .all();
+    const archive = roots.find(
+      (row) => fingerprint(["archive", row.root]) === archiveId,
+    );
+    if (!archive)
+      fail(
+        "ARCHIVE_NOT_FOUND",
+        "This archive is not in the Takeout index.",
+        "Run takeout archives to get its current archive ID.",
+        4,
+      );
+    const result = this.db
+      .query("DELETE FROM media WHERE root=?")
+      .run(archive.root);
+    return {
+      archiveId,
+      removed: result.changes,
+      filesDeleted: false,
+      note: "Only local index entries were removed. Re-import the folder to restore them; source photos are unchanged.",
     };
   }
   private row(id: string) {
@@ -362,12 +453,42 @@ export class Takeout {
         note: "JPEG preview, correctly oriented by macOS and bounded to 1600 pixels per dimension.",
       };
     }
+    if (
+      process.platform === "win32" &&
+      /\.(jpe?g|png|gif|tiff?|bmp)$/i.test(row.filename)
+    ) {
+      const result = await exportDirectory(
+        out,
+        async (staging) => {
+          await makeWindowsPreview(
+            path,
+            join(
+              staging,
+              safeName(row.filename.replace(/\.[^.]+$/, "") + "-preview.jpg"),
+            ),
+            signal,
+          );
+        },
+        signal,
+      );
+      return {
+        ...result,
+        note: "JPEG preview, oriented from EXIF and bounded to 1600 pixels per dimension by Windows.",
+      };
+    }
     if (!/\.(jpe?g|png|gif|webp|avif)$/i.test(row.filename))
       fail(
         "PREVIEW_PLATFORM_UNSUPPORTED",
-        "This Takeout image needs macOS to make a JPEG preview.",
+        "This Takeout image needs a supported system decoder to make a preview.",
         "Use macOS for HEIC, RAW, TIFF and other non-web-readable stills, or export the original.",
         3,
+      );
+    if ((await stat(path)).size > 20 * 1024 * 1024)
+      fail(
+        "PREVIEW_TOO_LARGE",
+        "Unresized Takeout previews are limited to 20 MiB.",
+        "Use export for the full-size original.",
+        2,
       );
     const result = await exportDirectory(
       out,

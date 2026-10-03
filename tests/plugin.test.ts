@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -17,12 +18,14 @@ const included = [
   "plugin.json",
   "LICENSE",
   "install.sh",
+  "install.ps1",
   "skills/stillport/SKILL.md",
   "docs/google-setup.md",
   "brand/mark.svg",
   "brand/demo-preview.jpg",
   "examples/takeout-demo/README.md",
   "examples/takeout-demo/run.sh",
+  "examples/takeout-demo/run.ps1",
   "examples/takeout-demo/Harbor/stillport-harbor.png",
   "examples/takeout-demo/Harbor/stillport-harbor.png.supplemental-metadata.json",
 ];
@@ -58,12 +61,45 @@ test("plugin ZIP extracts with linked resources and excludes added private files
     await writeFile(join(root, "photos.db"), "private");
     await mkdir(join(root, "dist"));
     await writeFile(join(root, "dist", "stillport"), "binary");
-    const out = join(root, "output", "stillport-plugin-v0.1.3.zip");
+    const out = join(root, "output", "stillport-plugin-v0.2.0.zip");
     const result = await packagePlugin(root, out);
-    const names = (await run("unzip", "-Z", "-1", out)).trim().split("\n");
-    expect(names).toEqual(included);
     const extracted = join(root, "extracted");
-    await run("unzip", "-qq", out, "-d", extracted);
+    if (process.platform === "win32") {
+      const script = join(root, "extract.ps1");
+      await writeFile(
+        script,
+        "param($Archive,$Destination)\nExpand-Archive -LiteralPath $Archive -DestinationPath $Destination\n",
+      );
+      await run(
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        script,
+        out,
+        extracted,
+      );
+    } else {
+      const names = (await run("unzip", "-Z", "-1", out)).trim().split("\n");
+      expect(names).toEqual(included);
+      await run("unzip", "-qq", out, "-d", extracted);
+    }
+    // Both native extractors must recover exactly the whitelist, byte for byte.
+    const extractedNames: string[] = [];
+    async function walk(directory: string, prefix = "") {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const name = prefix + entry.name;
+        if (entry.isDirectory())
+          await walk(join(directory, entry.name), name + "/");
+        else extractedNames.push(name);
+      }
+    }
+    await walk(extracted);
+    expect(extractedNames.sort()).toEqual([...included].sort());
+    for (const name of included)
+      expect(await readFile(join(extracted, name))).toEqual(
+        await readFile(join(root, name)),
+      );
     const manifest = JSON.parse(
       await readFile(join(extracted, "plugin.json"), "utf8"),
     );
@@ -86,7 +122,7 @@ test("plugin ZIP extracts with linked resources and excludes added private files
     expect(skill).toContain("../../docs/google-setup.md");
     expect(skill).toContain("examples/takeout-demo/run.sh");
     expect(await readFile(result.checksumPath, "utf8")).toBe(
-      `${result.sha256}  stillport-plugin-v0.1.3.zip\n`,
+      `${result.sha256}  stillport-plugin-v0.2.0.zip\n`,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -98,11 +134,11 @@ test("repeat packaging produces identical ZIP bytes", async () => {
   try {
     const first = await packagePlugin(
       root,
-      join(root, "one", "stillport-plugin-v0.1.3.zip"),
+      join(root, "one", "stillport-plugin-v0.2.0.zip"),
     );
     const second = await packagePlugin(
       root,
-      join(root, "two", "stillport-plugin-v0.1.3.zip"),
+      join(root, "two", "stillport-plugin-v0.2.0.zip"),
     );
     expect(second.sha256).toBe(first.sha256);
     expect(await readFile(second.archivePath)).toEqual(
@@ -116,7 +152,7 @@ test("repeat packaging produces identical ZIP bytes", async () => {
 test("missing manifest references and files fail before an archive is produced", async () => {
   const root = await fixture();
   try {
-    const out = join(root, "out", "stillport-plugin-v0.1.3.zip");
+    const out = join(root, "out", "stillport-plugin-v0.2.0.zip");
     const manifestPath = join(root, "plugin.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     manifest.extensions["com.openai"].interface.composerIcon =
@@ -145,7 +181,7 @@ test("whitelisted symlink is rejected", async () => {
       join(projectRoot, "brand/mark.svg"),
       join(root, "brand/mark.svg"),
     );
-    const out = join(root, "out", "stillport-plugin-v0.1.3.zip");
+    const out = join(root, "out", "stillport-plugin-v0.2.0.zip");
     await expect(packagePlugin(root, out)).rejects.toThrow(
       "Symlink is not allowed",
     );
@@ -162,7 +198,7 @@ test("plugin and package versions must match", async () => {
     const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
     pkg.version = "0.1.2";
     await writeFile(pkgPath, JSON.stringify(pkg));
-    const out = join(root, "out", "stillport-plugin-v0.1.3.zip");
+    const out = join(root, "out", "stillport-plugin-v0.2.0.zip");
     await expect(packagePlugin(root, out)).rejects.toThrow("versions differ");
     expect(await Bun.file(out).exists()).toBe(false);
   } finally {

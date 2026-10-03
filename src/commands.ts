@@ -60,10 +60,17 @@ export const commands: Record<string, Command> = {
   },
   preview: {
     description:
-      "Export an Apple, Google or Takeout still preview. macOS makes bounded JPEG previews; other Takeout platforms copy web-readable stills unchanged.",
+      "Export a still preview. macOS Takeout makes bounded JPEGs; Windows converts JPEG/PNG/GIF/TIFF/BMP to bounded JPEGs and copies WebP/AVIF unchanged. Linux copies web-readable Takeout stills unchanged.",
     positional: "id",
     required: ["out"],
     options: ["source", "session", "profile", "out"],
+    mutation: true,
+  },
+  gallery: {
+    description:
+      "Create a private offline gallery of one result page. Use --query for Apple/Takeout or select Google items in Picker; --open views it.",
+    required: ["out"],
+    options: [...search, "query", "session", "profile", "out", "open"],
     mutation: true,
   },
   reveal: {
@@ -113,6 +120,17 @@ export const commands: Record<string, Command> = {
     options: [],
     mutation: true,
   },
+  "takeout archives": {
+    description: "List indexed archive folders, availability and item counts.",
+    options: ["limit", "cursor"],
+  },
+  "takeout forget": {
+    description:
+      "Remove one archive from the local index. Source photos stay on disk; re-import restores the index.",
+    positional: "archive-id",
+    options: [],
+    mutation: true,
+  },
   "agent skill": {
     description: "Print a portable skill for photo-aware agents.",
     options: [],
@@ -129,6 +147,7 @@ export const commands: Record<string, Command> = {
   },
 };
 export const optionTypes: Record<string, "string" | "boolean"> = {
+  query: "string",
   source: "string",
   limit: "string",
   cursor: "string",
@@ -166,6 +185,7 @@ export const capabilities = {
       "export",
       "preview",
       "reveal",
+      "gallery",
     ],
     permission: "macOS Automation for the calling terminal or agent host",
     scope: "currently open Photos library",
@@ -176,10 +196,18 @@ export const capabilities = {
     ],
   },
   google: {
-    platform: "macOS, Linux",
+    platform: "macOS, Windows, Linux",
     searchEngine: "google-photos-picker",
     nativeSearch: "interactive",
-    operations: ["pick", "session", "items", "get", "export", "preview"],
+    operations: [
+      "pick",
+      "session",
+      "items",
+      "get",
+      "export",
+      "preview",
+      "gallery",
+    ],
     scope: "only items the user selects",
     permission: "Google Photos Picker OAuth",
     limits: [
@@ -190,11 +218,14 @@ export const capabilities = {
     ],
   },
   takeout: {
-    platform: "macOS, Linux",
+    platform: "macOS, Windows, Linux",
     searchEngine: "takeout-metadata",
     nativeSearch: false,
     operations: [
       "import",
+      "archives",
+      "forget",
+      "gallery",
       "search",
       "list",
       "albums",
@@ -208,7 +239,7 @@ export const capabilities = {
       "No Google face, object, OCR or live library search",
       "Archive must remain on disk",
       "Import refreshes the index; no automatic sync",
-      "macOS makes correctly oriented JPEG previews bounded to 1600 pixels; other platforms only copy already web-readable stills",
+      "macOS makes bounded JPEG previews; Windows makes oriented JPEG previews for JPEG, PNG, GIF, TIFF and BMP; Linux copies web-readable stills unchanged",
     ],
   },
 };

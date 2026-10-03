@@ -18,6 +18,32 @@ const item = {
     mediaFileMetadata: { width: 100, height: 100 },
   },
 };
+test("Google previews reject non-image bytes and leave no published folder", async () => {
+  const root = await mkdtemp(join(tmpdir(), "stillport-invalid-preview-"));
+  try {
+    for (const type of [
+      "video/mp4",
+      "application/octet-stream",
+      "image/jpeg",
+    ]) {
+      const google = new GooglePhotos(
+        async () => "test-only-token",
+        async (url) =>
+          String(url).includes("googleusercontent")
+            ? new Response("these are not image bytes", {
+                headers: { "Content-Type": type },
+              })
+            : Response.json({ mediaItems: [item] }),
+      );
+      await expect(
+        google.download("session", item.id, root, true),
+      ).rejects.toMatchObject({ code: "PREVIEW_INVALID" });
+      expect(await readdir(root)).toEqual([]);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 test("cancelling a Google JSON body reports cancellation, not malformed data", async () => {
   const abort = new AbortController();
   const result = requestJson(
@@ -82,7 +108,7 @@ test("Picker create, selected item pagination and download use the documented wi
     await google.items("session", 1, first.nextCursor!);
     expect(calls.at(-1)!.url).toContain("pageToken=page-2");
     const result = await google.download("session", "photo-1", root);
-    expect(result.files[0]!.startsWith(root + "/stillport-")).toBe(true);
+    expect(result.files[0]!.startsWith(join(root, "stillport-"))).toBe(true);
     expect(await Bun.file(result.files[0]!).text()).toBe("synthetic-jpeg");
     expect(calls.at(-1)!.url).toEndWith("=d");
     expect(calls.at(-1)!.init?.redirect).toBe("error");
@@ -243,4 +269,44 @@ test("Picker contract exposes polling and maps denial, expiry and cancellation h
   );
   controller.abort();
   await expect(cancelled).rejects.toThrow("cancelled");
+});
+
+test("Google preview validates still bytes, dimensions and MIME without changing originals", async () => {
+  const root = await mkdtemp(join(tmpdir(), "stillport-valid-preview-"));
+  const png = await Bun.file(
+    new URL(
+      "../examples/takeout-demo/Harbor/stillport-harbor.png",
+      import.meta.url,
+    ),
+  ).bytes();
+  const make = (bytes: Uint8Array, type = "image/png") =>
+    new GooglePhotos(
+      async () => "test-only-token",
+      async (url) =>
+        String(url).includes("googleusercontent")
+          ? new Response(Buffer.from(bytes), {
+              headers: { "Content-Type": type },
+            })
+          : Response.json({ mediaItems: [item] }),
+    );
+  try {
+    const result = await make(png).download("session", item.id, root, true);
+    expect(result.files[0]).toEndWith("-preview.png");
+    expect(await Bun.file(result.files[0]!).bytes()).toEqual(png);
+    await rm(result.directory, { recursive: true });
+    const oversized = Buffer.from(png);
+    oversized.writeUInt32BE(1601, 16);
+    for (const [bytes, type] of [
+      [png, "image/jpeg"],
+      [oversized, "image/png"],
+      [png.subarray(0, png.length - 12), "image/png"],
+    ] as const) {
+      await expect(
+        make(bytes, type).download("session", item.id, root, true),
+      ).rejects.toMatchObject({ code: "PREVIEW_INVALID" });
+      expect(await readdir(root)).toEqual([]);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

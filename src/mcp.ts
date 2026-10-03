@@ -18,8 +18,46 @@ interface Tool {
   properties: Record<string, unknown>;
   required?: string[];
   write?: boolean;
+  destructive?: boolean;
 }
 const definitions: Tool[] = [
+  {
+    name: "stillport_gallery",
+    description:
+      "Create a private offline HTML gallery for one page of Apple, Takeout or Google Picker results. Does not open a browser or alter originals.",
+    command: "gallery",
+    properties: {
+      source,
+      ...page,
+      query: { type: "string" },
+      after: { type: "string" },
+      before: { type: "string" },
+      favorite: { type: "boolean" },
+      album: { type: "string" },
+      session: { type: "string" },
+      out: { type: "string" },
+    },
+    required: ["out"],
+    write: true,
+  },
+  {
+    name: "stillport_takeout_archives",
+    description:
+      "List indexed local Takeout archive folders and whether they remain on disk.",
+    command: "takeout archives",
+    properties: { ...page },
+  },
+  {
+    name: "stillport_takeout_forget",
+    description:
+      "Remove one archive from the local index only. Original photos remain unchanged; re-import restores the index.",
+    command: "takeout forget",
+    positional: "archive",
+    properties: { archive: { type: "string" } },
+    required: ["archive"],
+    write: true,
+    destructive: true,
+  },
   {
     name: "stillport_capabilities",
     description:
@@ -49,7 +87,15 @@ const definitions: Tool[] = [
     description:
       "List Apple or Takeout media, or selected Google items using a session.",
     command: "list",
-    properties: { source, ...page, session: { type: "string" } },
+    properties: {
+      source,
+      ...page,
+      session: { type: "string" },
+      after: { type: "string" },
+      before: { type: "string" },
+      favorite: { type: "boolean" },
+      album: { type: "string" },
+    },
   },
   {
     name: "stillport_albums",
@@ -94,7 +140,7 @@ const definitions: Tool[] = [
   {
     name: "stillport_preview",
     description:
-      "Write an Apple, Google or Takeout still preview. Apple and macOS Takeout previews are JPEGs bounded to 1600 pixels; other Takeout platforms copy web-readable stills unchanged.",
+      "Write a still preview. Apple and macOS Takeout make bounded JPEGs. Windows Takeout converts JPEG/PNG/GIF/TIFF/BMP to bounded JPEGs and copies WebP/AVIF unchanged; Linux copies web-readable stills unchanged. Google supplies a validated still up to 1600 pixels.",
     command: "preview",
     positional: "id",
     properties: {
@@ -214,7 +260,7 @@ export class McpServer {
           },
           annotations: {
             readOnlyHint: !t.write,
-            destructiveHint: false,
+            destructiveHint: t.destructive === true,
             idempotentHint: !t.write,
             openWorldHint: true,
           },
@@ -264,6 +310,7 @@ export class McpServer {
         "export",
         "preview",
         "search",
+        "gallery",
       ].includes(definition.command)
     )
       options.profile = this.profile;

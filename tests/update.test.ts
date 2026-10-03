@@ -2,6 +2,8 @@ import { test, expect } from "bun:test";
 import { checksumFor, newer, releaseAsset } from "../src/update";
 test("release selection and checksum matching reject ambiguous or malformed manifests", () => {
   expect(releaseAsset("darwin", "arm64")).toBe("stillport-darwin-arm64");
+  expect(releaseAsset("win32", "x64")).toBe("stillport-windows-x64.exe");
+  expect(releaseAsset("win32", "arm64")).toBe("stillport-windows-arm64.exe");
   expect(() => releaseAsset("plan9", "mips")).toThrow();
   const hash = "a".repeat(64);
   expect(

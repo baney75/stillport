@@ -1,7 +1,7 @@
 # Stillport
 
 Stillport is a local photo CLI, stdio MCP server, and portable skill plugin.
-Use Bun 1.3.10+ and preserve JSON envelope version 1, exit codes, opaque IDs,
+Use Bun 1.4.2+ and preserve JSON envelope version 1, exit codes, opaque IDs,
 provider limits, private export folders, and cancellation cleanup.
 
 Run `bun run check`, `bun run build`, and `bun run package:plugin` for a release.

@@ -1,3 +1,20 @@
+# Release notes
+
+## 0.2.0
+
+- Native Windows x64 and ARM64 builds, a checksum-verifying PowerShell installer,
+  per-user state, protected output ACLs and updates after the executable exits.
+- Oriented, bounded Windows previews for JPEG, PNG, GIF, TIFF and BMP.
+- Private offline galleries through CLI and MCP, with local previews, metadata,
+  filtering, pagination and placeholders for missing or unsupported previews.
+- Archive inventory and index-only forget commands for moved Takeout archives.
+- NFC-normalized Unicode metadata search, including migration of existing indexes.
+- Date, album and favorites filters exposed consistently by MCP listings.
+- Google previews reject unsupported MIME types, invalid headers, truncated still responses and
+  oversized dimensions; failed downloads publish no partial gallery or preview.
+- Reproducible plugin ZIPs built without an external ZIP executable; Windows
+  installer and public PowerShell fixture included in the plugin.
+
 Stillport 0.1.3 adds an installable Codex skill plugin and fixes cancellation while a Google JSON response is loading.
 
 - Cancelling a Google request after headers arrive now returns `CANCELLED` while its JSON body is loading; malformed JSON still returns `INVALID_RESPONSE`.

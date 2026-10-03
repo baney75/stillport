@@ -1,6 +1,6 @@
 # Stillport plugin
 
-Stillport's portable `plugin.json` packages one skill for a local macOS or Linux
+Stillport's portable `plugin.json` packages one skill for a local macOS, Windows or Linux
 shell. The skill uses the standalone CLI and includes setup instructions,
 the checksum-verifying installer, Google setup, and a public synthetic fixture.
 It does not install the CLI automatically when loaded. Provider consent and
@@ -9,7 +9,7 @@ task authorization still apply.
 ## Install from GitHub in Codex
 
 ```sh
-codex plugin marketplace add baney75/stillport --ref v0.1.3
+codex plugin marketplace add baney75/stillport --ref v0.2.0
 codex plugin add stillport@stillport-marketplace
 ```
 
@@ -29,14 +29,14 @@ extracted local archive.
 bun install --frozen-lockfile --ignore-scripts
 bun run check
 bun run package:plugin
-unzip -l dist/stillport-plugin-v0.1.3.zip
+unzip -l dist/stillport-plugin-v0.2.0.zip
 ```
 
 The packager uses an explicit file list, rejects symlinks and missing referenced
 resources, checks release-version agreement, and produces reproducible ZIP bytes
 with a SHA-256 sidecar. It excludes the source checkout's dependencies, compiled
-executables, private indexes, environment files, and credentials. `zip` is required
-for packaging; it is present on the GitHub macOS and Linux runners.
+executables, private indexes, environment files, and credentials. The packager writes ZIP entries directly and works on Windows without a separate
+`zip` executable.
 
 For local authoring, extract the ZIP into a separate marketplace directory and
 add a `.agents/plugins/marketplace.json` there with its plugin source pointing at

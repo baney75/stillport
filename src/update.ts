@@ -1,4 +1,11 @@
-import { chmod, copyFile, mkdtemp, rename, rm } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  mkdtemp,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { REPO, VERSION, fail, runProcess } from "./core";
@@ -8,16 +15,111 @@ export function releaseAsset(
   arch = process.arch as string,
 ) {
   if (
-    !["darwin", "linux"].includes(platform) ||
+    !["darwin", "linux", "win32"].includes(platform) ||
     !["arm64", "x64"].includes(arch)
   )
     fail(
       "PLATFORM_UNSUPPORTED",
-      "Release binaries support macOS and Linux on ARM64 and x64.",
+      "Release binaries support macOS, Linux and Windows on ARM64 and x64.",
       "Run from source with Bun on other platforms.",
       3,
     );
-  return `stillport-${platform}-${arch}`;
+  return `stillport-${platform === "win32" ? "windows" : platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
+}
+
+// The helper runs in a second PowerShell process after the CLI releases its .exe lock.
+export const windowsUpdateHelper = String.raw`param(
+  [int]$ParentPid, [string]$Installed, [string]$Staged,
+  [string]$Backup, [string]$Status, [string]$ExpectedHash
+)
+$ErrorActionPreference = 'Stop'
+try {
+  $parent = Get-Process -Id $ParentPid -ErrorAction SilentlyContinue
+  if ($parent) { $null = $parent.WaitForExit(120000) }
+  if (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) { throw 'The running Stillport process did not exit within two minutes.' }
+  if ((Get-FileHash -LiteralPath $Staged -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedHash) { throw 'The staged executable checksum changed.' }
+  Move-Item -LiteralPath $Installed -Destination $Backup -ErrorAction Stop
+  try {
+    Move-Item -LiteralPath $Staged -Destination $Installed -ErrorAction Stop
+  } catch {
+    Move-Item -LiteralPath $Backup -Destination $Installed -ErrorAction Stop
+    throw
+  }
+  Set-Content -LiteralPath $Status -Value 'applied' -NoNewline
+} catch {
+  Set-Content -LiteralPath $Status -Value ('failed: ' + $_.Exception.Message) -NoNewline
+  exit 1
+}
+`;
+
+export async function stageWindowsUpdate(
+  executable: string,
+  binary: Uint8Array,
+  expectedHash: string,
+  version: string,
+  waitForPid = process.pid,
+) {
+  const staging = await mkdtemp(
+    join(dirname(executable), ".stillport-update-"),
+  );
+  const staged = join(staging, "stillport.exe");
+  const helper = join(staging, "apply.ps1");
+  const status = join(staging, "status.txt");
+  const rollback = `${executable}.previous-${Date.now()}`;
+  try {
+    await Bun.write(staged, binary);
+    const probe = await runProcess([staged, "--version"], 15_000);
+    if (probe.code || probe.stdout.trim() !== version)
+      fail(
+        "UPDATE_VALIDATION_FAILED",
+        "The new binary did not report the expected version. Your installation is unchanged.",
+      );
+    await writeFile(helper, windowsUpdateHelper, "utf8");
+    const child = Bun.spawn(
+      [
+        "powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        helper,
+        "-ParentPid",
+        String(waitForPid),
+        "-Installed",
+        executable,
+        "-Staged",
+        staged,
+        "-Backup",
+        rollback,
+        "-Status",
+        status,
+        "-ExpectedHash",
+        expectedHash,
+      ],
+      {
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "ignore",
+        windowsHide: true,
+      },
+    );
+    // Startup errors surface here; replacement is reported only by the helper status file.
+    if (!child.pid)
+      throw new Error("Could not start the Windows update helper.");
+    child.unref();
+    return {
+      current: VERSION,
+      latest: version,
+      updated: false,
+      pending: true,
+      status,
+      rollback,
+    };
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
 }
 export function checksumFor(sums: string, asset: string) {
   const matches = sums
@@ -124,6 +226,13 @@ export async function update(check = false) {
       "Release verification failed. Your installation is unchanged.",
     );
   const executable = process.execPath;
+  if (process.platform === "win32")
+    return stageWindowsUpdate(
+      executable,
+      binary,
+      expected,
+      release.tag_name.slice(1),
+    );
   const staging = await mkdtemp(
     join(dirname(executable), ".stillport-update-"),
   );

@@ -411,6 +411,19 @@
         font-size: 13px;
         margin-top: 5px;
       }
+      #install-platform {
+        max-width: 150px;
+        border: 1px solid #b9cba5;
+        border-radius: 5px;
+        padding: 4px;
+        font: inherit;
+        color: #173e38;
+        background: #f7f2e8;
+      }
+      #install-platform:focus-visible {
+        outline: 3px solid #ee8963;
+        outline-offset: 3px;
+      }
       .install h2 {
         font:
           34px/1.1 Georgia,
@@ -742,8 +755,9 @@
             <span class="num">03 / INSPECT</span>
             <h3>Preview one item.</h3>
             <p>
-              Apple, Google, and macOS Takeout create a still no larger than
-              1600 pixels. Other Takeout hosts copy compatible stills unchanged.
+              Apple, Google and macOS Takeout make bounded still previews.
+              Windows converts JPEG, PNG, GIF, TIFF and BMP to bounded JPEGs;
+              WebP/AVIF and Linux web-readable stills are copied unchanged.
             </p>
           </article>
           <article class="workflow-step">
@@ -761,8 +775,8 @@
           <span class="eyebrow">Small setup. Useful access.</span>
           <h2>One command to install.</h2>
           <p>
-            Standalone binaries for macOS and Linux. No runtime to install.
-            Updates verify checksums and keep the previous binary.
+            Standalone binaries for macOS, Windows, and Linux. No runtime to
+            install. Updates verify checksums and keep the previous binary.
           </p>
           <p>
             <a href="https://github.com/baney75/stillport#install"
@@ -772,6 +786,11 @@
         </div>
         <div class="code-card">
           <div class="code-top">
+            <label for="install-platform">Platform</label>
+            <select id="install-platform" aria-label="Install platform">
+              <option value="unix">macOS / Linux</option>
+              <option value="windows">Windows</option>
+            </select>
             <span>TERMINAL</span
             ><button id="copy" type="button">Copy install</button>
           </div>
@@ -937,6 +956,18 @@
       ><span>Independent software. Not affiliated with Apple or Google.</span>
     </footer>
     <script>
+      const installCommands = {
+        unix: "curl -fsSL https://raw.githubusercontent.com/baney75/stillport/main/install.sh | sh",
+        windows:
+          "& { $ErrorActionPreference = 'Stop'; Invoke-WebRequest https://raw.githubusercontent.com/baney75/stillport/v0.2.0/install.ps1 -OutFile install.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File .\\install.ps1 -Version v0.2.0 }",
+      };
+      document
+        .getElementById("install-platform")
+        .addEventListener("change", function () {
+          document.getElementById("install-command").textContent =
+            installCommands[this.value];
+          document.getElementById("copy").textContent = "Copy install";
+        });
       document
         .getElementById("copy")
         .addEventListener("click", async function () {
