@@ -7,6 +7,9 @@ This skill requires a local macOS, Windows or Linux shell, the Stillport CLI, an
 chosen provider's setup. It cannot access the user's Mac library from a cloud
 or mobile chat without a connected local execution environment.
 
+Use CLI 0.2.0 or later for galleries, archive recovery and native Windows support.
+An older standalone CLI can update with `stillport update` within authorized setup.
+
 Start with `command -v stillport` on macOS/Linux or `Get-Command stillport` in PowerShell, then `stillport --version` and `stillport doctor`.
 If it is absent, the package includes [the installer](../../install.sh). When
 installation is authorized, inspect it and run

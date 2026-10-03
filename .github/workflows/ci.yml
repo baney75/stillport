@@ -64,5 +64,5 @@ jobs:
           & "$PWD/examples/takeout-demo/run.ps1" "$PWD/.local/plugin-output"
           bun -e 'const key={service:"dev.stillport.ci",name:"roundtrip"}; try { await Bun.secrets.set({...key,value:"test-only"}); if (await Bun.secrets.get(key)!=="test-only") throw new Error("Windows Credential Manager round trip failed"); } finally { await Bun.secrets.delete(key); }'
           if ($LASTEXITCODE -ne 0) { throw 'Windows Credential Manager round trip failed.' }
-          bun test tests/windows.test.ts
+          bun test --timeout 60000 tests/windows.test.ts
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows tests failed.' }

@@ -87,7 +87,7 @@ export class Takeout {
     return new Takeout(db);
   }
   close() {
-    this.db.close();
+    this.db.close(true);
   }
   status() {
     return this.db
@@ -297,7 +297,9 @@ export class Takeout {
           lastTakenAt: string | null;
         },
         [number, number]
-      >("SELECT root,COUNT(*) AS itemCount,MIN(takenAt) AS firstTakenAt,MAX(takenAt) AS lastTakenAt FROM media GROUP BY root ORDER BY root LIMIT ? OFFSET ?")
+      >(
+        "SELECT root,COUNT(*) AS itemCount,MIN(takenAt) AS firstTakenAt,MAX(takenAt) AS lastTakenAt FROM media GROUP BY root ORDER BY root LIMIT ? OFFSET ?",
+      )
       .all(limit + 1, offset);
     const items = await Promise.all(
       rows.slice(0, limit).map(async (row) => ({

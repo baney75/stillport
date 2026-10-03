@@ -87,6 +87,7 @@ test("self-contained gallery copies supported stills, escapes metadata, and hide
     expect(html).not.toMatch(/https?:\/\//i);
     expect(html).toContain("Filter these results");
     expect(html).toContain("script-src 'sha256-");
+    expect(html).toContain("img-src 'self' file:");
     expect(await readFile(source)).toEqual(png);
   }));
 

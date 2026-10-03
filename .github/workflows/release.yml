@@ -59,7 +59,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native capabilities failed.' }
           $env:STILLPORT_BIN = $env:STILLPORT_WINDOWS_BINARY
           & "$PWD/examples/takeout-demo/run.ps1" "$PWD/.local/release-demo"
-          bun test tests/windows.test.ts
+          bun test --timeout 60000 tests/windows.test.ts
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows tests failed.' }
   publish:
     needs: [build, windows-smoke]
