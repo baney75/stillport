@@ -41,6 +41,12 @@ export function windowsPowerShellEnv(
   return env;
 }
 
+export function windowsPowerShell(
+  which: (name: string) => string | null = Bun.which,
+) {
+  return which("pwsh.exe") ? "pwsh.exe" : "powershell.exe";
+}
+
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, {
     stdin: "ignore",
@@ -81,7 +87,7 @@ export async function makePrivateWindows(path: string) {
   if (process.platform !== "win32") return;
   await command(
     [
-      "powershell.exe",
+      windowsPowerShell(),
       "-NoProfile",
       "-NonInteractive",
       "-EncodedCommand",

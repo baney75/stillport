@@ -15,6 +15,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.
 The installer uses the OS architecture, checks SHA-256 and the executable's version,
 and adds `%LOCALAPPDATA%\Programs\Stillport` to your user PATH. Restart the terminal.
 It requires PowerShell and HTTPS access to GitHub, without administrator rights.
+Internal photo and update operations prefer PowerShell 7 (`pwsh`) when installed,
+then fall back to Windows PowerShell. This avoids running the older shell under
+emulation on ARM64 computers that have native PowerShell 7.
 `-InstallDir 'D:\Tools with spaces\Stillport'` chooses another destination;
 `-NoPath` leaves PATH unchanged. An existing executable is retained as a uniquely
 named `stillport.previous-*.exe` in the install directory.

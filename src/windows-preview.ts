@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { cancelledError, fail, throwIfCancelled } from "./core";
-import { windowsPowerShellEnv } from "./platform";
+import { windowsPowerShell, windowsPowerShellEnv } from "./platform";
 
 // Paths travel as process environment values, never as PowerShell source text.
 const previewScript = String.raw`
@@ -50,7 +50,7 @@ export async function makeWindowsPreview(
   const encoded = Buffer.from(previewScript, "utf16le").toString("base64");
   const child = Bun.spawn(
     [
-      "powershell.exe",
+      windowsPowerShell(),
       "-NoProfile",
       "-NonInteractive",
       "-EncodedCommand",

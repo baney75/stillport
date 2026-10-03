@@ -1,16 +1,9 @@
-import {
-  chmod,
-  copyFile,
-  mkdtemp,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, rename, rm } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { REPO, VERSION, fail, runProcess } from "./core";
 import { requestJson } from "./http";
-import { windowsPowerShellEnv } from "./platform";
+import { windowsPowerShell, windowsPowerShellEnv } from "./platform";
 export function releaseAsset(
   platform = process.platform as string,
   arch = process.arch as string,
@@ -28,12 +21,16 @@ export function releaseAsset(
   return `stillport-${platform === "win32" ? "windows" : platform}-${arch}${platform === "win32" ? ".exe" : ""}`;
 }
 
-// The helper runs in a second PowerShell process after the CLI releases its .exe lock.
-export const windowsUpdateHelper = String.raw`param(
-  [int]$ParentPid, [string]$Installed, [string]$Staged,
-  [string]$Backup, [string]$Status, [string]$ExpectedHash
-)
+// The helper runs after the CLI releases its .exe lock. Paths are environment
+// values, never source text passed through cmd.exe.
+export const windowsUpdateHelper = String.raw`
 $ErrorActionPreference = 'Stop'
+$ParentPid = [int]$env:STILLPORT_UPDATE_PARENT_PID
+$Installed = $env:STILLPORT_UPDATE_INSTALLED
+$Staged = $env:STILLPORT_UPDATE_STAGED
+$Backup = $env:STILLPORT_UPDATE_BACKUP
+$Status = $env:STILLPORT_UPDATE_STATUS
+$ExpectedHash = $env:STILLPORT_UPDATE_HASH
 try {
   $parent = Get-Process -Id $ParentPid -ErrorAction SilentlyContinue
   if ($parent) { $null = $parent.WaitForExit(120000) }
@@ -53,6 +50,27 @@ try {
 }
 `;
 
+export function windowsUpdateLaunchCommand(shell = windowsPowerShell()) {
+  if (shell !== "pwsh.exe" && shell !== "powershell.exe")
+    throw new Error("Unsupported Windows PowerShell executable.");
+  const encoded = Buffer.from(windowsUpdateHelper, "utf16le").toString(
+    "base64",
+  );
+  return [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "start",
+    "",
+    "/b",
+    shell,
+    "-NoProfile",
+    "-NonInteractive",
+    "-EncodedCommand",
+    encoded,
+  ];
+}
+
 export async function stageWindowsUpdate(
   executable: string,
   binary: Uint8Array,
@@ -64,7 +82,6 @@ export async function stageWindowsUpdate(
     join(dirname(executable), ".stillport-update-"),
   );
   const staged = join(staging, "stillport.exe");
-  const helper = join(staging, "apply.ps1");
   const status = join(staging, "status.txt");
   const rollback = `${executable}.previous-${Date.now()}`;
   try {
@@ -75,41 +92,24 @@ export async function stageWindowsUpdate(
         "UPDATE_VALIDATION_FAILED",
         "The new binary did not report the expected version. Your installation is unchanged.",
       );
-    await writeFile(helper, windowsUpdateHelper, "utf8");
-    const child = Bun.spawn(
-      [
-        "powershell.exe",
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        helper,
-        "-ParentPid",
-        String(waitForPid),
-        "-Installed",
-        executable,
-        "-Staged",
-        staged,
-        "-Backup",
-        rollback,
-        "-Status",
-        status,
-        "-ExpectedHash",
-        expectedHash,
-      ],
-      {
-        stdin: "ignore",
-        stdout: "ignore",
-        stderr: "ignore",
-        windowsHide: true,
-        env: windowsPowerShellEnv(),
-      },
-    );
-    // Startup errors surface here; replacement is reported only by the helper status file.
-    if (!child.pid)
+    const child = Bun.spawn(windowsUpdateLaunchCommand(), {
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
+      windowsHide: true,
+      env: windowsPowerShellEnv({
+        STILLPORT_UPDATE_PARENT_PID: String(waitForPid),
+        STILLPORT_UPDATE_INSTALLED: executable,
+        STILLPORT_UPDATE_STAGED: staged,
+        STILLPORT_UPDATE_BACKUP: rollback,
+        STILLPORT_UPDATE_STATUS: status,
+        STILLPORT_UPDATE_HASH: expectedHash,
+      }),
+    });
+    // The trampoline must start before this process exits. The helper itself
+    // reports applied/failed in the status file after the running .exe unlocks.
+    if ((await child.exited) !== 0)
       throw new Error("Could not start the Windows update helper.");
-    child.unref();
     return {
       current: VERSION,
       latest: version,

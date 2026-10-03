@@ -7,6 +7,7 @@ param(
   [switch]$NoPath
 )
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 if (-not $Version) { $Version = 'latest' }
 if ($Version -ne 'latest' -and $Version -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Version must be latest or vX.Y.Z.' }
 if (-not $InstallDir) { $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\Stillport' }
@@ -34,8 +35,8 @@ $movedOld = $false
 try {
   $download = Join-Path $staging $asset
   $manifest = Join-Path $staging 'SHA256SUMS'
-  Invoke-WebRequest -UseBasicParsing -Uri ($ReleaseBaseUri.TrimEnd('/') + '/' + $asset) -OutFile $download
-  Invoke-WebRequest -UseBasicParsing -Uri ($ReleaseBaseUri.TrimEnd('/') + '/SHA256SUMS') -OutFile $manifest
+  Invoke-WebRequest -UseBasicParsing -TimeoutSec 180 -Uri ($ReleaseBaseUri.TrimEnd('/') + '/' + $asset) -OutFile $download
+  Invoke-WebRequest -UseBasicParsing -TimeoutSec 180 -Uri ($ReleaseBaseUri.TrimEnd('/') + '/SHA256SUMS') -OutFile $manifest
   $matches = @([IO.File]::ReadAllLines($manifest) | ForEach-Object {
     if ($_ -cmatch '^([a-f0-9]{64})\s+\*?(.+?)\s*$' -and $Matches[2] -ceq $asset) { $Matches[1] }
   })

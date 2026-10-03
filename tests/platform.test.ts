@@ -7,6 +7,7 @@ import {
   stateDirectory,
   makePrivateWindows,
   windowsPowerShellEnv,
+  windowsPowerShell,
 } from "../src/platform";
 import { exportDirectory } from "../src/core";
 
@@ -23,10 +24,21 @@ test("Windows PowerShell child drops inherited module paths only", () => {
     { STILLPORT_PRIVATE_PATH: "C:\\test", PSMODULEPATH: "from-extra" },
     { PSModulePath: "from-pwsh", PATH: "keep", CUSTOM: "keep-too" },
   );
-  expect(Object.keys(env).some((key) => key.toLowerCase() === "psmodulepath")).toBe(false);
+  expect(
+    Object.keys(env).some((key) => key.toLowerCase() === "psmodulepath"),
+  ).toBe(false);
   expect(env.PATH).toBe("keep");
   expect(env.CUSTOM).toBe("keep-too");
   expect(env.STILLPORT_PRIVATE_PATH).toBe("C:\\test");
+});
+
+test("Windows PowerShell prefers native pwsh and retains the built-in fallback", () => {
+  expect(
+    windowsPowerShell((name) =>
+      name === "pwsh.exe" ? "C:\\Program Files\\PowerShell\\7\\pwsh.exe" : null,
+    ),
+  ).toBe("pwsh.exe");
+  expect(windowsPowerShell(() => null)).toBe("powershell.exe");
 });
 
 test.skipIf(process.platform !== "win32")(
@@ -38,7 +50,7 @@ test.skipIf(process.platform !== "win32")(
     async function acl(path: string) {
       const child = Bun.spawn(
         [
-          "powershell.exe",
+          windowsPowerShell(),
           "-NoProfile",
           "-NonInteractive",
           "-EncodedCommand",
@@ -115,7 +127,7 @@ $entries = @($a.Access | ForEach-Object { [pscustomobject]@{ sid = $_.IdentityRe
 [pscustomobject]@{ protected = $a.AreAccessRulesProtected; user = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; entries = $entries } | ConvertTo-Json -Depth 5 -Compress`;
       const child = Bun.spawn(
         [
-          "powershell.exe",
+          windowsPowerShell(),
           "-NoProfile",
           "-NonInteractive",
           "-EncodedCommand",

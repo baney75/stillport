@@ -5,13 +5,36 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import pkg from "../package.json";
 import { makeWindowsPreview } from "../src/windows-preview";
-import { windowsPowerShellEnv } from "../src/platform";
+import { windowsPowerShell, windowsPowerShellEnv } from "../src/platform";
+import { windowsUpdateLaunchCommand } from "../src/update";
 
 const binary = process.env.STILLPORT_WINDOWS_BINARY;
 const native = process.platform === "win32" && !!binary;
 
+test("update trampoline contains only fixed shell tokens and encoded source", () => {
+  const command = windowsUpdateLaunchCommand("pwsh.exe");
+  expect(command.slice(0, 10)).toEqual([
+    "cmd.exe",
+    "/d",
+    "/c",
+    "start",
+    "",
+    "/b",
+    "pwsh.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-EncodedCommand",
+  ]);
+  expect(command[10]).toMatch(/^[A-Za-z0-9+/=]+$/);
+  expect(command.join(" ").length).toBeLessThan(8191);
+  expect(command.join(" ")).not.toMatch(/[&%!]/);
+  expect(() => windowsUpdateLaunchCommand("user & input.exe")).toThrow();
+});
+
 async function invoke(args: string[], env = process.env) {
-  const childEnv = args[0]?.toLowerCase().endsWith("powershell.exe")
+  const childEnv = ["powershell.exe", "pwsh.exe"].includes(
+    args[0]?.toLowerCase() || "",
+  )
     ? windowsPowerShellEnv({}, env)
     : env;
   const child = Bun.spawn(args, {
@@ -53,7 +76,7 @@ test.skipIf(!native)(
       const installer = resolve("install.ps1");
       const run = () =>
         invoke([
-          "powershell.exe",
+          windowsPowerShell(),
           "-NoProfile",
           "-NonInteractive",
           "-ExecutionPolicy",
@@ -67,7 +90,10 @@ test.skipIf(!native)(
           `http://127.0.0.1:${server.port}`,
         ]);
       const first = await run();
-      expect(first.code).toBe(0);
+      if (first.code !== 0)
+        throw new Error(
+          `Installer failed (${first.code}): ${first.stdout}\n${first.stderr}`,
+        );
       expect(
         (
           await invoke([join(root, "stillport.exe"), "--version"])
@@ -92,7 +118,7 @@ test.skipIf(!native)(
 test.skipIf(!native)(
   "detached Windows helper applies after parent exit and rejects changed checksum",
   async () => {
-    const root = await mkdtemp(join(tmpdir(), "stillport-update-test-"));
+    const root = await mkdtemp(join(tmpdir(), "stillport update & % !-"));
     const installed = join(root, "stillport.exe");
     const bytes = await Bun.file(binary!).arrayBuffer();
     const hash = createHash("sha256")
@@ -102,7 +128,11 @@ test.skipIf(!native)(
 const bytes = new Uint8Array(await Bun.file(process.env.STILLPORT_TEST_BINARY).arrayBuffer());
 const result = await stageWindowsUpdate(process.env.STILLPORT_TEST_INSTALLED, bytes, process.env.STILLPORT_TEST_HASH, process.env.STILLPORT_TEST_VERSION, Number(process.env.STILLPORT_TEST_WAIT_PID) || process.pid);
 console.log(JSON.stringify(result));`;
-    async function run(expected: string, waitForPid?: number) {
+    async function run(
+      expected: string,
+      waitForPid?: number,
+      beforeWait?: (status: string) => Promise<void>,
+    ) {
       const child = await invoke([process.execPath, "-e", script], {
         ...process.env,
         STILLPORT_TEST_BINARY: binary!,
@@ -111,12 +141,16 @@ console.log(JSON.stringify(result));`;
         STILLPORT_TEST_VERSION: pkg.version,
         STILLPORT_TEST_WAIT_PID: waitForPid ? String(waitForPid) : "",
       });
-      expect(child.code).toBe(0);
+      if (child.code !== 0)
+        throw new Error(
+          `Update staging failed (${child.code}): ${child.stdout}\n${child.stderr}`,
+        );
       const result = JSON.parse(child.stdout.trim()) as {
         pending: boolean;
         status: string;
       };
       expect(result.pending).toBe(true);
+      if (beforeWait) await beforeWait(result.status);
       for (let i = 0; i < 100; i++) {
         const text = await readFile(result.status, "utf8").catch(() => "");
         if (text) return text;
@@ -138,11 +172,13 @@ console.log(JSON.stringify(result));`;
       });
       await Bun.sleep(200);
       expect(old.pid).toBeGreaterThan(0);
-      const pending = run(hash, old.pid);
-      await Bun.sleep(300);
-      old.stdin.end();
-      expect(await old.exited).toBe(0);
-      expect(await pending).toBe("applied");
+      expect(
+        await run(hash, old.pid, async (status) => {
+          expect(await readFile(status, "utf8").catch(() => "")).toBe("");
+          old.stdin.end();
+          expect(await old.exited).toBe(0);
+        }),
+      ).toBe("applied");
       expect((await invoke([installed, "--version"])).stdout.trim()).toBe(
         pkg.version,
       );
@@ -174,7 +210,7 @@ try { [pscustomobject]@{ width=$image.Width; height=$image.Height } | ConvertTo-
     function ps(script: string, env: NodeJS.ProcessEnv) {
       return invoke(
         [
-          "powershell.exe",
+          windowsPowerShell(),
           "-NoProfile",
           "-NonInteractive",
           "-EncodedCommand",

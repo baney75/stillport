@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { windowsPowerShellEnv } from "../src/platform";
+import { windowsPowerShell, windowsPowerShellEnv } from "../src/platform";
 import { packagePlugin } from "../scripts/package-plugin";
 
 const projectRoot = resolve(import.meta.dir, "..");
@@ -45,10 +45,11 @@ async function run(...command: string[]) {
   const proc = Bun.spawn(command, {
     stdout: "pipe",
     stderr: "pipe",
-    env:
-      command[0]?.toLowerCase() === "powershell.exe"
-        ? windowsPowerShellEnv()
-        : process.env,
+    env: ["powershell.exe", "pwsh.exe"].includes(
+      command[0]?.toLowerCase() || "",
+    )
+      ? windowsPowerShellEnv()
+      : process.env,
   });
   const [code, stdout, stderr] = await Promise.all([
     proc.exited,
@@ -79,7 +80,7 @@ test("plugin ZIP extracts with linked resources and excludes added private files
         "param($Archive,$Destination)\nExpand-Archive -LiteralPath $Archive -DestinationPath $Destination\n",
       );
       await run(
-        "powershell.exe",
+        windowsPowerShell(),
         "-NoProfile",
         "-NonInteractive",
         "-File",
