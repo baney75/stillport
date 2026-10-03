@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { windowsPowerShellEnv } from "../src/platform";
 import { packagePlugin } from "../scripts/package-plugin";
 
 const projectRoot = resolve(import.meta.dir, "..");
@@ -41,7 +42,14 @@ async function fixture() {
 }
 
 async function run(...command: string[]) {
-  const proc = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(command, {
+    stdout: "pipe",
+    stderr: "pipe",
+    env:
+      command[0]?.toLowerCase() === "powershell.exe"
+        ? windowsPowerShellEnv()
+        : process.env,
+  });
   const [code, stdout, stderr] = await Promise.all([
     proc.exited,
     new Response(proc.stdout).text(),

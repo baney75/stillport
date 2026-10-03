@@ -10,6 +10,7 @@ import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { REPO, VERSION, fail, runProcess } from "./core";
 import { requestJson } from "./http";
+import { windowsPowerShellEnv } from "./platform";
 export function releaseAsset(
   platform = process.platform as string,
   arch = process.arch as string,
@@ -102,6 +103,7 @@ export async function stageWindowsUpdate(
         stdout: "ignore",
         stderr: "ignore",
         windowsHide: true,
+        env: windowsPowerShellEnv(),
       },
     );
     // Startup errors surface here; replacement is reported only by the helper status file.

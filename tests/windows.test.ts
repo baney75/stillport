@@ -5,14 +5,18 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import pkg from "../package.json";
 import { makeWindowsPreview } from "../src/windows-preview";
+import { windowsPowerShellEnv } from "../src/platform";
 
 const binary = process.env.STILLPORT_WINDOWS_BINARY;
 const native = process.platform === "win32" && !!binary;
 
 async function invoke(args: string[], env = process.env) {
+  const childEnv = args[0]?.toLowerCase().endsWith("powershell.exe")
+    ? windowsPowerShellEnv({}, env)
+    : env;
   const child = Bun.spawn(args, {
     cwd: resolve("."),
-    env,
+    env: childEnv,
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",

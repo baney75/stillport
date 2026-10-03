@@ -39,7 +39,7 @@ async function read(profile: string): Promise<Credential | null> {
     return fail(
       "KEYCHAIN_UNAVAILABLE",
       "The operating system credential store is unavailable.",
-      "Unlock Keychain or start a Linux Secret Service. Headless agents can supply STILLPORT_GOOGLE_ACCESS_TOKEN.",
+      "Check Windows Credential Manager, unlock macOS Keychain or start Linux Secret Service. Headless agents can supply STILLPORT_GOOGLE_ACCESS_TOKEN.",
       3,
     );
   }
@@ -51,7 +51,7 @@ async function save(profile: string, value: Credential) {
     fail(
       "KEYCHAIN_UNAVAILABLE",
       "Could not store authorization in the operating system credential store.",
-      "Unlock Keychain or start a Linux Secret Service. No plaintext credential file was written.",
+      "Check Windows Credential Manager, unlock macOS Keychain or start Linux Secret Service. No plaintext credential file was written.",
       3,
     );
   }

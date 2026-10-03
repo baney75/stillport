@@ -28,6 +28,19 @@ export function safeFilename(name: string) {
   return value || "photo";
 }
 
+// pwsh 7 can pass its module path to Windows PowerShell 5.1. Let the latter
+// reconstruct its own defaults so built-in commands such as Get-Acl load.
+export function windowsPowerShellEnv(
+  extra: NodeJS.ProcessEnv = {},
+  inherited: NodeJS.ProcessEnv = process.env,
+) {
+  const env = { ...inherited, ...extra };
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === "psmodulepath") delete env[key];
+  }
+  return env;
+}
+
 async function command(args: string[], env = process.env) {
   const child = Bun.spawn(args, {
     stdin: "ignore",
@@ -74,6 +87,6 @@ export async function makePrivateWindows(path: string) {
       "-EncodedCommand",
       Buffer.from(aclScript, "utf16le").toString("base64"),
     ],
-    { ...process.env, STILLPORT_PRIVATE_PATH: path },
+    windowsPowerShellEnv({ STILLPORT_PRIVATE_PATH: path }),
   );
 }

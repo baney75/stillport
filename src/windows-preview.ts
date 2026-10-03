@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import { cancelledError, fail, throwIfCancelled } from "./core";
+import { windowsPowerShellEnv } from "./platform";
 
 // Paths travel as process environment values, never as PowerShell source text.
 const previewScript = String.raw`
@@ -59,11 +60,10 @@ export async function makeWindowsPreview(
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
-      env: {
-        ...process.env,
+      env: windowsPowerShellEnv({
         STILLPORT_PREVIEW_SOURCE: source,
         STILLPORT_PREVIEW_DESTINATION: destination,
-      },
+      }),
     },
   );
   const cancel = () => child.kill();

@@ -6,6 +6,7 @@ import {
   safeFilename,
   stateDirectory,
   makePrivateWindows,
+  windowsPowerShellEnv,
 } from "../src/platform";
 import { exportDirectory } from "../src/core";
 
@@ -15,6 +16,17 @@ test("Windows names avoid device aliases and terminal dots/spaces", () => {
   expect(safeFilename("COM¹.jpg")).toBe("_COM¹.jpg");
   expect(safeFilename("photo... ")).toBe("photo");
   expect(safeFilename("a/b:c")).toBe("a_b_c");
+});
+
+test("Windows PowerShell child drops inherited module paths only", () => {
+  const env = windowsPowerShellEnv(
+    { STILLPORT_PRIVATE_PATH: "C:\\test", PSMODULEPATH: "from-extra" },
+    { PSModulePath: "from-pwsh", PATH: "keep", CUSTOM: "keep-too" },
+  );
+  expect(Object.keys(env).some((key) => key.toLowerCase() === "psmodulepath")).toBe(false);
+  expect(env.PATH).toBe("keep");
+  expect(env.CUSTOM).toBe("keep-too");
+  expect(env.STILLPORT_PRIVATE_PATH).toBe("C:\\test");
 });
 
 test.skipIf(process.platform !== "win32")(
@@ -35,7 +47,7 @@ test.skipIf(process.platform !== "win32")(
         {
           stdout: "pipe",
           stderr: "pipe",
-          env: { ...process.env, STILLPORT_PRIVATE_PATH: path },
+          env: windowsPowerShellEnv({ STILLPORT_PRIVATE_PATH: path }),
         },
       );
       const output = await new Response(child.stdout).text();
@@ -112,7 +124,7 @@ $entries = @($a.Access | ForEach-Object { [pscustomobject]@{ sid = $_.IdentityRe
         {
           stdout: "pipe",
           stderr: "pipe",
-          env: { ...process.env, STILLPORT_PRIVATE_PATH: path },
+          env: windowsPowerShellEnv({ STILLPORT_PRIVATE_PATH: path }),
         },
       );
       const output = await new Response(child.stdout).text();

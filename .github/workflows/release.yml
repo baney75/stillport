@@ -30,6 +30,7 @@ jobs:
   windows-smoke:
     needs: build
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, windows-11-arm]
     runs-on: ${{ matrix.os }}
