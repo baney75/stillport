@@ -76,7 +76,7 @@ test.skipIf(!native)(
       const installer = resolve("install.ps1");
       const run = () =>
         invoke([
-          windowsPowerShell(),
+          "powershell.exe",
           "-NoProfile",
           "-NonInteractive",
           "-ExecutionPolicy",

@@ -1,5 +1,57 @@
 # Verification
 
+## 0.2.0, October 2, 2026
+
+[CI at source commit `c8d4b1f`](https://github.com/baney75/stillport/actions/runs/37091354246)
+passed on macOS, Linux, Windows x64 and Windows ARM64 with Bun 1.4.2.
+Local TypeScript checking and 44 tests passed with 325 assertions; five
+Windows-only cases were skipped on the Mac and exercised by Windows CI.
+Both Windows hosts passed 46 source tests and four post-build Windows tests.
+These cover installer checksum rejection with the native executable, replacement
+after the updater's parent exits, system-decoded EXIF-oriented 1600-pixel previews,
+and the update launch command's fixed tokens. CI also ran
+compiled doctor/capability discovery, MCP initialization and tool discovery,
+the public PowerShell Takeout fixture, and a dummy Windows Credential Manager
+set/get/delete round trip. ACL checks confirmed protected current-user/SYSTEM
+access and unchanged caller-owned output-parent permissions.
+
+Native checks exposed failures that cross-compilation did not: inherited
+PowerShell module paths, SQLite handles retained after import, slow Windows
+PowerShell calls on ARM64, and an updater child that died with its parent.
+The fixes isolate child module paths, finalize prepared SQLite statements on
+close, prefer installed PowerShell 7, and await a shell trampoline before the
+updater exits. Tests retain cancellation/cleanup assertions and observe actual
+export staging before cancelling. Installer downloads suppress progress output
+and have a three-minute limit. The source suite and native failure checks passed
+after these repairs.
+
+The plugin ZIP contains 13 whitelisted public files, including the Windows
+installer and demo. Repeated builds produced identical bytes; extraction,
+referenced resources, symlink rejection, version agreement and exclusion of
+added private files passed. SHA-256:
+`f106583196c70e262dde4e454deae714f667eabbcca04f0cf92b81cf87c8db1e`.
+The extracted fixture passed import, caption search and preview through the
+compiled macOS ARM64 CLI, including the committed demo-image hash comparison.
+The compiled MCP server exposes 15 tools, including gallery and archive recovery.
+
+A gallery generated from public synthetic photo/video/unsupported-image fixtures
+was rendered in Chromium at 1280 × 900 and 390 × 844 through a bounded localhost
+preview. Its photo loaded, placeholders were legible, and neither size had
+horizontal overflow. Filtering returned one matching item and an explicit empty
+state for no matches. Direct `file:` opening was not observed through browser
+automation; the generated HTML permits local image URLs and uses hashed script
+and style policies. The Windows installation control was inspected at phone size
+and its copy action displayed `Copied`; system clipboard contents were not read
+back in this pass.
+
+Gallery, archive recovery, Unicode migration, MCP filters, preview-header
+validation and cancellation checks use public or synthetic fixtures. Google
+preview validation checks supported MIME types, headers, basic container
+structure and dimensions; it is not a full pixel decoder. Native Apple library
+access and real Google-account OAuth/Picker were not retested. Directory upload,
+approval and publication have not been verified; a GitHub release and locally
+installed skill do not establish those external states.
+
 ## 0.1.3 plugin candidate, October 2, 2026
 
 The local candidate passed TypeScript checking and 28 tests with 207 assertions,
