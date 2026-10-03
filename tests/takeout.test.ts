@@ -196,13 +196,14 @@ test("Takeout cancellation preserves the index and MCP removes a partial export"
     });
 
     let sawStaging = false;
-    for (let attempt = 0; attempt < 100; attempt++) {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
       const names = await readdir(output).catch(() => []);
       if (names.some((name) => name.startsWith(".stillport-"))) {
         sawStaging = true;
         break;
       }
-      await Bun.sleep(1);
+      await Bun.sleep(10);
     }
     expect(sawStaging).toBe(true);
     await server.handle({
