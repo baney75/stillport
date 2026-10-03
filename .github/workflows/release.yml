@@ -6,6 +6,7 @@ permissions:
   contents: read
 jobs:
   build:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +16,12 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - name: Verify release version
         run: test "v$(bun src/cli.ts --version)" = "$GITHUB_REF_NAME"
-      - run: bun run check
+      - name: Typecheck
+        run: bun run typecheck
+        timeout-minutes: 5
+      - name: Test public behavior
+        run: bun run test
+        timeout-minutes: 5
       - run: bun scripts/build.ts --all
       - run: bun run package:plugin
       - name: Smoke test Linux release
@@ -29,6 +35,7 @@ jobs:
           path: dist/*
   windows-smoke:
     needs: build
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

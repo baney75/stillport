@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   check:
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -18,7 +19,12 @@ jobs:
         with:
           bun-version: "1.4.2"
       - run: bun install --frozen-lockfile --ignore-scripts
-      - run: bun run check
+      - name: Typecheck
+        run: bun run typecheck
+        timeout-minutes: 5
+      - name: Test public behavior
+        run: bun run test
+        timeout-minutes: 5
       - run: bun run build
       - name: Smoke test standalone binary
         if: runner.os != 'Windows'
