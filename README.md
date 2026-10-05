@@ -8,7 +8,7 @@
 
 Stillport gives AI agents a CLI and an MCP server for Apple Photos, Google Photos Picker, and local Google Takeout archives. Search with the native Photos engine, inspect metadata, and export the photos an agent needs to see.
 
-Built in TypeScript with Bun. Standalone releases require neither Node nor Bun. No hosted intermediary, telemetry, or AI API key.
+Built with TypeScript and Bun. Standalone releases require neither Node nor Bun. No hosted intermediary, telemetry, or AI API key.
 
 ## Install in Codex
 
