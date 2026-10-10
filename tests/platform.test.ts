@@ -8,8 +8,39 @@ import {
   makePrivateWindows,
   windowsPowerShellEnv,
   windowsPowerShell,
+  retryTransientClr,
 } from "../src/platform";
 import { exportDirectory } from "../src/core";
+import { bunIsSupported } from "../src/runtime";
+
+test("transient PowerShell CLR startup failures are retried, other errors are not", async () => {
+  let calls = 0;
+  const value = await retryTransientClr(async () => {
+    if (++calls < 3)
+      throw new Error(
+        "Windows permission setup failed: Fatal error. Internal CLR error. (0x80131506)",
+      );
+    return "ok";
+  });
+  expect(value).toBe("ok");
+  expect(calls).toBe(3);
+  let other = 0;
+  await expect(
+    retryTransientClr(async () => {
+      other++;
+      throw new Error("Windows permission setup failed: Access denied");
+    }),
+  ).rejects.toThrow("Access denied");
+  expect(other).toBe(1);
+});
+
+test("Bun version guard accepts the minimum and rejects older releases", () => {
+  expect(bunIsSupported("1.4.2")).toBe(true);
+  expect(bunIsSupported("1.10.0")).toBe(true);
+  expect(bunIsSupported("2.0.0")).toBe(true);
+  expect(bunIsSupported("1.3.14")).toBe(false);
+  expect(bunIsSupported("1.4.1")).toBe(false);
+});
 
 test("Windows names avoid device aliases and terminal dots/spaces", () => {
   expect(safeFilename("CON.txt")).toBe("_CON.txt");
