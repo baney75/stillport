@@ -10,6 +10,51 @@ Stillport gives AI agents a CLI and an MCP server for Apple Photos, Google Photo
 
 Built with TypeScript and Bun. Standalone releases require neither Node nor Bun. No hosted intermediary, telemetry, or AI API key.
 
+## What you can ask Claude
+
+Once Stillport is connected ([setup below](#use-with-claude)), you ask in plain language and Claude calls Stillport's tools on your computer:
+
+- "Find my photos of dogs at the beach in Apple Photos and show me the three best ones." Claude runs Apple's native Photos search and reads JPEG previews.
+- "Which photos did I take in July 2026? Export the favorites into a new folder." Claude lists by date and favorites, then copies the files into a private folder.
+- "Search my Google Takeout folder for the harbor photo and make a gallery of the results." Claude searches filenames, captions and folders in your extracted archive and builds an offline HTML gallery.
+
+Stillport reads and exports. It does not edit or delete anything in your library. A full [example session](docs/example-session.md) shows real tool output.
+
+## Use with Claude
+
+Apple Photos and Takeout first, Google optional:
+
+1. Install Stillport ([below](#install)) and run `stillport doctor`.
+2. On a Mac, ask Claude to search your photos; allow Automation for Photos when macOS asks. Otherwise run `stillport takeout import '/path/to/Google Photos'` on an extracted Takeout folder.
+3. Connect Claude with one of the two commands or configs below.
+4. Add Google later: it needs your own OAuth client and a selection in Google's Picker ([guide](docs/google-setup.md)).
+
+**Claude Code** (all your projects):
+
+```sh
+claude mcp add stillport --scope user -- "$(command -v stillport)" mcp
+```
+
+Then run `claude mcp list` and confirm `stillport` is connected.
+
+**Claude Desktop** edits `claude_desktop_config.json`:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "stillport": {
+      "command": "/Users/you/.local/bin/stillport",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+On Windows use the installed path, with doubled backslashes, for example `"command": "C:\\Users\\you\\AppData\\Local\\Programs\\Stillport\\stillport.exe"`. Restart Claude Desktop after saving. Claude only reaches photos through tools running on your computer; a Claude chat without a local connection cannot see your library.
+
 ## Install in Codex
 
 Add the repository marketplace and install the Stillport skill:
@@ -227,7 +272,7 @@ bun run package:plugin
 bun scripts/build.ts --all
 ```
 
-Bun 1.4.2+; CI and releases use 1.4.2. Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS, Linux, Windows x64 and Windows ARM64, including native executable checks. Tagging `vX.Y.Z` builds all release binaries, the plugin ZIP, and their checksums, provided the tag matches `package.json` and `plugin.json`.
+Bun 1.4.2+; CI and releases use 1.4.2. Older Bun versions stop with "Stillport needs Bun >= 1.4.2" (on 1.3.x the Takeout index fails with `database is locked`). Runtime code has no npm dependencies. TypeScript and Bun types are development dependencies. CI tests macOS, Linux, Windows x64 and Windows ARM64, including native executable checks. Tagging `vX.Y.Z` builds all release binaries, the plugin ZIP, and their checksums, provided the tag matches `package.json` and `plugin.json`.
 
 For source installs, update with `git pull --ff-only && bun install --frozen-lockfile --ignore-scripts`. `stillport update` manages standalone binaries.
 

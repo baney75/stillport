@@ -83,16 +83,36 @@ foreach ($sid in @([Security.Principal.WindowsIdentity]::GetCurrent().User, [Sec
 }
 Set-Acl -LiteralPath $path -AclObject $acl
 `;
+// Windows PowerShell on ARM64 runners sometimes dies at startup with an
+// "Internal CLR error. (0x80131506)" before running any script. The failure is
+// transient and the ACL script is idempotent, so retry that error only.
+export async function retryTransientClr<T>(
+  run: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= attempts || !message.includes("0x80131506")) throw error;
+      await new Promise((done) => setTimeout(done, 250 * attempt));
+    }
+  }
+}
+
 export async function makePrivateWindows(path: string) {
   if (process.platform !== "win32") return;
-  await command(
-    [
-      windowsPowerShell(),
-      "-NoProfile",
-      "-NonInteractive",
-      "-EncodedCommand",
-      Buffer.from(aclScript, "utf16le").toString("base64"),
-    ],
-    windowsPowerShellEnv({ STILLPORT_PRIVATE_PATH: path }),
+  await retryTransientClr(() =>
+    command(
+      [
+        windowsPowerShell(),
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        Buffer.from(aclScript, "utf16le").toString("base64"),
+      ],
+      windowsPowerShellEnv({ STILLPORT_PRIVATE_PATH: path }),
+    ),
   );
 }

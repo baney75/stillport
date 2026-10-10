@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import "./runtime";
 import { parseArgs } from "node:util";
 import { API_VERSION, VERSION, asError, fail } from "./core";
 import { commands, optionTypes } from "./commands";
