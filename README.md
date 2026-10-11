@@ -281,3 +281,9 @@ For source installs, update with `git pull --ff-only && bun install --frozen-loc
 [Verification and limits](docs/verification.md) · [Google setup](docs/google-setup.md) · [Product review brief](docs/product-review.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Brand and product page](brand/) · [MIT license](LICENSE)
 
 Stillport is an independent project, not affiliated with Apple or Google. Platform names identify the services it connects to.
+
+## Sponsors
+
+<!-- sponsors:start -->
+No sponsors yet. [Sponsor on GitHub](https://github.com/sponsors/baney75) and your name appears here automatically.
+<!-- sponsors:end -->
