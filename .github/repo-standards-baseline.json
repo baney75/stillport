@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-07",
+  "problems": [
+    "logging: the service logs no structured lines (JSON or a structured logger)",
+    "readme: README has no ## License heading or license line"
+  ]
+}
